@@ -1,12 +1,9 @@
-// Shape of content/traxler/tree.json, shared by the spike scripts.
-import { join } from 'node:path';
+// Shape of content/openings/<id>/tree.json: the opening's position graph with
+// game statistics and evaluations. Research only; nothing here depends on
+// which side a course teaches.
 import { type Color, sideToMove } from '@scholia/chess-core';
 import type { Evaluation } from './evaluation.ts';
-import { CONTENT_DIR } from './http.ts';
 import type { Counts, ExplorerDb } from './lichess.ts';
-
-export const TRAXLER_DIR = join(CONTENT_DIR, 'traxler');
-export const TRAXLER_ROOT_PGN = '1. e4 e5 2. Nf3 Nc6 3. Bc4 Nf6 4. Ng5 Bc5';
 
 export const edgeId = (from: string, uci: string) => `${from} ${uci}`;
 
@@ -25,26 +22,6 @@ export function formatLine(startFen: string, sans: string[]): string {
 }
 
 export type EdgeOrigin = 'dataset' | 'explorer' | 'source' | 'lesson';
-
-export interface SourceRef {
-  kind: 'book' | 'wiki' | 'study' | 'article' | 'web' | 'personal';
-  title: string;
-  author?: string;
-  url?: string;
-  /** Page, chapter, or section within the source. */
-  locator?: string;
-  /** Revision or edition, e.g. a wiki revision ID. */
-  revision?: string;
-  license?: string;
-}
-
-export interface Explanation {
-  status: 'missing' | 'drafted' | 'reviewed';
-  form?: 'quote' | 'paraphrase' | 'model-summary' | 'personal-note';
-  text: string | null;
-  sources: SourceRef[];
-  notes?: string;
-}
 
 export interface TreeNode {
   key: string;
@@ -68,8 +45,6 @@ export interface TreeEdge {
   line: string;
   origins: EdgeOrigin[];
   games?: Partial<Record<ExplorerDb, Counts>>;
-  /** The slot to fill: why this move is played, or why it fails. */
-  explanation: Explanation;
 }
 
 export interface Tree {
@@ -79,6 +54,4 @@ export interface Tree {
   settings: Record<string, unknown>;
   nodes: TreeNode[];
   edges: TreeEdge[];
-  /** Filled explanations whose move is no longer in the tree; kept so nothing is lost. */
-  orphanedExplanations: { from: string; uci: string; line: string; explanation: Explanation }[];
 }

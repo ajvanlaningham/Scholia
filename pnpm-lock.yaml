@@ -88,7 +88,7 @@ importers:
 
   packages/lesson-format: {}
 
-  tools/spike:
+  tools/pipeline:
     dependencies:
       '@scholia/chess-core':
         specifier: workspace:*

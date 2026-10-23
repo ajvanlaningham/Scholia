@@ -1,0 +1,13 @@
+{
+  "name": "@scholia/pipeline",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "cli": "node --env-file-if-exists=../../.env src/cli.ts",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@scholia/chess-core": "workspace:*",
+    "@scholia/lesson-format": "workspace:*"
+  }
+}

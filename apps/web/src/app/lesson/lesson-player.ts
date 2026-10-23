@@ -43,10 +43,11 @@ type Feedback =
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class LessonPlayer {
-  /** Route parameter. */
-  readonly id = input.required<string>();
+  /** Route parameters. */
+  readonly courseId = input.required<string>();
+  readonly lessonId = input.required<string>();
 
-  protected readonly lesson = httpResource<CompiledLesson>(() => lessonUrl(this.id()));
+  protected readonly lesson = httpResource<CompiledLesson>(() => lessonUrl(this.courseId(), this.lessonId()));
 
   protected readonly sectionIndex = signal(0);
   /** Plies of the current section that have been played. */
@@ -85,7 +86,8 @@ export class LessonPlayer {
     inject(DestroyRef).onDestroy(() => clearTimeout(this.timer));
     // Following a link to another lesson reuses this component: start over.
     effect(() => {
-      this.id();
+      this.courseId();
+      this.lessonId();
       untracked(() => {
         clearTimeout(this.timer);
         this.phase.set('intro');

@@ -1,6 +1,6 @@
 @if (lesson.error()) {
   <p class="error">
-    Couldn't load lesson "{{ id() }}". Run <code>pnpm spike:lessons</code> to compile it.
+    Couldn't load lesson "{{ lessonId() }}". Run <code>pnpm lessons</code> to compile it.
   </p>
 } @else if (lesson.value(); as l) {
   <div class="layout">
@@ -132,7 +132,7 @@
             <p class="verdict">Section complete</p>
             @if (section()?.next; as n) {
               @for (next of n.lessons; track next.id) {
-                <a class="primary button" [routerLink]="['/lesson', next.id]">Continue: {{ next.title }} →</a>
+                <a class="primary button" [routerLink]="['/course', l.course, 'lesson', next.id]">Continue: {{ next.title }} →</a>
               }
               @if (n.options.length) {
                 <p class="label">{{ nextMover() }} to move · the options from here</p>
@@ -142,7 +142,7 @@
                       <strong>{{ o.san }}</strong>
                       <span class="engine-inline">{{ o.engine.verdict }} · {{ o.engine.scoreAfter }}@if (o.engine.club) { · {{ o.engine.club }} }</span>
                       @for (next of o.lessons; track next.id) {
-                        <a [routerLink]="['/lesson', next.id]">Lesson: {{ next.title }} →</a>
+                        <a [routerLink]="['/course', l.course, 'lesson', next.id]">Lesson: {{ next.title }} →</a>
                       } @empty {
                         <span class="muted">no lesson yet</span>
                       }

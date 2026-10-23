@@ -3,9 +3,23 @@
 // text, engine verdicts), so the player needs no chess-data logic beyond
 // legality, and an API can later serve the same shape.
 
-export interface CompiledCourse {
+/** All courses, for the home page: content/index.json. */
+export interface CourseIndex {
+  courses: CourseSummary[];
+}
+
+export interface CourseSummary {
   id: string;
   title: string;
+  opening: string;
+  learner: 'white' | 'black';
+  /** "wield": the learner plays the opening's idea. "face": the learner meets it. */
+  stance: 'wield' | 'face';
+  lessons: number;
+}
+
+/** content/courses/<id>.json; its lessons are at content/lessons/<course>/<lesson>.json. */
+export interface CompiledCourse extends Omit<CourseSummary, 'lessons'> {
   /** In course order: each lesson follows the lesson it continues from. */
   lessons: CourseLesson[];
 }

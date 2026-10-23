@@ -60,7 +60,8 @@ export function studyAnnotations(
   study: StudySummary,
   pgn: string,
   scope: ReadonlySet<string>,
-  rootKey: string,
+  /** The root of the opening whose tree contains this position, for anchoring chapter intros. */
+  rootOf: (key: string) => string | undefined,
 ): SourceCollection {
   const collection: SourceCollection = {
     adapter: `lichess-study:${study.id}`,
@@ -130,7 +131,12 @@ export function studyAnnotations(
 
     // An intro describes the chapter's starting position; chapters that start
     // from move 1 but cover the Traxler get their intro anchored at its root.
-    const introKey = scope.has(chapter.startKey) ? chapter.startKey : kept.length > 0 ? rootKey : undefined;
+    const firstMove = kept.find((a) => a.anchor === 'move');
+    const introKey = scope.has(chapter.startKey)
+      ? chapter.startKey
+      : firstMove?.anchor === 'move'
+        ? rootOf(firstMove.fromKey)
+        : undefined;
     if (chapter.intro.length > 0 && introKey) {
       kept.unshift({
         source,

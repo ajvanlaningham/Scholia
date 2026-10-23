@@ -1,13 +1,24 @@
 // Commentary gathered from published sources, each piece anchored to the move it
 // discusses. Every adapter (Wikibooks, Lichess studies, hand-entered books)
 // produces this shape, so coverage can be joined on position keys regardless of
-// the move order a source used.
+// the move order a source used. Sources form one pool shared by all openings.
 import { readdir, readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { CONTENT_DIR } from './http.ts';
-import type { SourceRef } from './tree.ts';
 
 export const SOURCES_DIR = join(CONTENT_DIR, 'sources');
+
+export interface SourceRef {
+  kind: 'book' | 'wiki' | 'study' | 'article' | 'web' | 'personal';
+  title: string;
+  author?: string;
+  url?: string;
+  /** Page, chapter, or section within the source. */
+  locator?: string;
+  /** Revision or edition, e.g. a wiki revision ID. */
+  revision?: string;
+  license?: string;
+}
 
 interface AnnotationBase {
   source: SourceRef;
