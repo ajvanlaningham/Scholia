@@ -1,0 +1,10 @@
+[Unit]
+Description=Weekly Scholia content refresh
+
+[Timer]
+OnCalendar=Sun *-*-* 04:00:00 UTC
+Persistent=true
+RandomizedDelaySec=15m
+
+[Install]
+WantedBy=timers.target

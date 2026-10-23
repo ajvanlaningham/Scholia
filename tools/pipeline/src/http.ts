@@ -17,20 +17,31 @@ const HOST_INTERVAL_MS: Record<string, number> = { 'en.wikibooks.org': 2000 };
 const RATE_LIMIT_BACKOFF_MS = 60_000;
 
 let lastRequestAt = 0;
+/** Cached responses older than this are refetched; undefined keeps them forever. */
+let maxAgeMs: number | undefined;
 
 export interface CachedResponse {
   status: number;
   body: string;
+  /** When the response was fetched (epoch ms); missing on entries from before it was recorded. */
+  fetchedAt?: number;
+}
+
+/** Makes cachedGet refetch entries older than `ms` (scheduled refreshes). */
+export function setMaxCacheAge(ms: number | undefined): void {
+  maxAgeMs = ms;
 }
 
 /**
  * GET with an on-disk cache and sequential pacing. 404s are cached as well, so
- * delete .cache/http to re-query positions that had no data.
+ * delete .cache/http (or use setMaxCacheAge) to re-query positions that had no data.
  */
 export async function cachedGet(url: string, headers: Record<string, string> = {}): Promise<CachedResponse> {
   const file = join(CACHE_DIR, `${createHash('sha256').update(url).digest('hex')}.json`);
   try {
-    return JSON.parse(await readFile(file, 'utf8')) as CachedResponse;
+    const cached = JSON.parse(await readFile(file, 'utf8')) as CachedResponse;
+    const fresh = maxAgeMs === undefined || (cached.fetchedAt !== undefined && Date.now() - cached.fetchedAt < maxAgeMs);
+    if (fresh) return cached;
   } catch {
     // Not cached yet.
   }
@@ -52,7 +63,7 @@ export async function cachedGet(url: string, headers: Record<string, string> = {
       throw new Error(`GET ${url} failed with ${res.status}: ${await res.text()}`);
     }
 
-    const response: CachedResponse = { status: res.status, body: await res.text() };
+    const response: CachedResponse = { status: res.status, body: await res.text(), fetchedAt: Date.now() };
     await mkdir(CACHE_DIR, { recursive: true });
     await writeFile(file, JSON.stringify(response));
     return response;

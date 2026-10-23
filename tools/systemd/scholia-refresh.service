@@ -1,0 +1,10 @@
+[Unit]
+Description=Scholia content refresh (sources, trees, lesson checks, report)
+
+[Service]
+Type=oneshot
+WorkingDirectory=/home/muninn/repos/Scholia
+# nvm's Node, plus /usr/games for Stockfish. Update the version after upgrading Node.
+Environment=PATH=/home/muninn/.nvm/versions/node/v26.3.0/bin:/usr/games:/usr/local/bin:/usr/bin:/bin
+ExecStart=/home/muninn/.nvm/versions/node/v26.3.0/bin/pnpm refresh
+Nice=10

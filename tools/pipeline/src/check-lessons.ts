@@ -27,7 +27,7 @@ import type {
   Ply,
   Scholium,
 } from '@scholia/lesson-format';
-import { type CourseConfig, lessonFiles, lessonsDir } from './config.ts';
+import { type CourseConfig, lessonFiles, lessonsDir, listCourses, loadTree } from './config.ts';
 import { formatScore, moveLoss, winChanceFor } from './evaluation.ts';
 import { REPO_ROOT } from './http.ts';
 import { totalGames } from './lichess.ts';
@@ -81,7 +81,7 @@ interface Lesson {
 export async function compileCourse(
   course: CourseConfig,
   tree: Tree,
-): Promise<{ course: CompiledCourse; problems: number }> {
+): Promise<{ course: CompiledCourse; problems: number; issues: string[] }> {
   const LESSONS_DIR = lessonsDir(course.id);
   const nodes = new Map(tree.nodes.map((n) => [n.key, n]));
   const edges = new Map(tree.edges.map((e) => [edgeId(e.from, e.uci), e]));
@@ -420,6 +420,8 @@ export async function compileCourse(
   await mkdir(join(WEB_CONTENT_DIR, 'courses'), { recursive: true });
   const compiledLessons: CompiledLesson[] = [];
   let totalProblems = 0;
+  /** Every problem, prefixed with its lesson, for reports. */
+  const issues: string[] = [];
 
   for (const [i, lesson] of lessons.entries()) {
     const problems: string[] = [];
@@ -440,6 +442,7 @@ export async function compileCourse(
 
     console.log(`Lesson ${lesson.id}: ${compiled.sections.length} sections, ${problems.length} problems, ${notes.length} notes`);
     for (const p of problems) console.log(`  ✗ ${p}`);
+    issues.push(...problems.map((p) => `${lesson.id}: ${p}`));
     for (const n of notes) console.log(`  · ${n}`);
   }
 
@@ -471,6 +474,7 @@ export async function compileCourse(
   const publishable = compiledLessons.length > 0 && totalProblems === 0 && compiledLessons.every((l) => l.status === 'reviewed');
   if (course.status === 'published' && !publishable) {
     console.log('  ✗ course is marked published, but not every lesson is reviewed and problem-free');
+    issues.push('course is marked published, but not every lesson is reviewed and problem-free');
     totalProblems++;
   }
   const compiledCourse: CompiledCourse = {
@@ -485,7 +489,18 @@ export async function compileCourse(
     lessons: ordered,
   };
   await writeFile(join(WEB_CONTENT_DIR, 'courses', `${course.id}.json`), `${JSON.stringify(compiledCourse, null, 2)}\n`);
-  return { course: compiledCourse, problems: totalProblems };
+  return { course: compiledCourse, problems: totalProblems, issues };
+}
+
+/** Compiles every course and the course index. */
+export async function compileAllCourses(): Promise<{ course: CompiledCourse; problems: number; issues: string[] }[]> {
+  const results = [];
+  for (const course of await listCourses()) {
+    console.log(`\n${course.title} (${course.id})`);
+    results.push(await compileCourse(course, await loadTree(course.opening)));
+  }
+  await writeCourseIndex(results.map((r) => r.course));
+  return results;
 }
 
 /** Lists every compiled course for the web app's home page. */

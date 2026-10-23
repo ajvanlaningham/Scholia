@@ -4,31 +4,23 @@
 //   pnpm sources <id>   fetch Wikibooks for the opening, and every listed Lichess study
 //   pnpm course <id>    rank candidates, write coverage and dossier, compile lessons
 //   pnpm lessons        compile every course's lessons (fast; no network)
+//   pnpm refresh        refetch, rebuild, re-check, report, commit gathered data
+//                       (--cached: same, from cached responses)
 //
 // Typical order for a new opening: opening → sources → opening (again, to add
 // source lines and their evaluations) → course.
-import { listCourses, loadCourse, loadOpening, loadTree } from './config.ts';
+import { loadCourse, loadOpening, loadTree } from './config.ts';
 import { writeCoverage } from './coverage.ts';
 import { writeDossier } from './dossier.ts';
 import { fetchStudies, fetchWikibooks } from './fetch-sources.ts';
 import { buildTree } from './build-tree.ts';
-import { compileCourse, writeCourseIndex } from './check-lessons.ts';
+import { compileAllCourses } from './check-lessons.ts';
 import { rankCandidates } from './rank-candidates.ts';
+import { refresh } from './refresh.ts';
 
 const [command, id] = process.argv.slice(2);
 
-async function compileAll(): Promise<number> {
-  const compiled = [];
-  let problems = 0;
-  for (const course of await listCourses()) {
-    console.log(`\n${course.title} (${course.id})`);
-    const result = await compileCourse(course, await loadTree(course.opening));
-    compiled.push(result.course);
-    problems += result.problems;
-  }
-  await writeCourseIndex(compiled);
-  return problems;
-}
+const compileAll = async () => (await compileAllCourses()).reduce((n, r) => n + r.problems, 0);
 
 function requireId(): string {
   if (!id) throw new Error(`Usage: pnpm ${command} <id>`);
@@ -52,10 +44,13 @@ switch (command) {
     if ((await compileAll()) > 0) process.exitCode = 1;
     break;
   }
+  case 'refresh':
+    await refresh({ refetch: id !== '--cached' });
+    break;
   case 'lessons':
     if ((await compileAll()) > 0) process.exitCode = 1;
     break;
   default:
-    console.error('Usage: pnpm opening|sources|course <id>, or pnpm lessons');
+    console.error('Usage: pnpm opening|sources|course <id>, pnpm lessons, or pnpm refresh [--cached]');
     process.exitCode = 2;
 }

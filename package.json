@@ -13,7 +13,8 @@
     "opening": "pnpm --filter @scholia/pipeline cli opening",
     "sources": "pnpm --filter @scholia/pipeline cli sources",
     "course": "pnpm --filter @scholia/pipeline cli course",
-    "lessons": "pnpm --filter @scholia/pipeline cli lessons"
+    "lessons": "pnpm --filter @scholia/pipeline cli lessons",
+    "refresh": "pnpm --filter @scholia/pipeline cli refresh"
   },
   "devDependencies": {
     "@types/node": "^26.6.5",
