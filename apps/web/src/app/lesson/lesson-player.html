@@ -1,183 +1,300 @@
 @if (lesson.error()) {
-  <p class="error">
-    Couldn't load lesson "{{ lessonId() }}". Run <code>pnpm lessons</code> to compile it.
-  </p>
+  <p class="error">Couldn't load lesson "{{ lessonId() }}". Run <code>pnpm lessons</code> to compile it.</p>
 } @else if (lesson.value(); as l) {
-  <div class="layout">
+  <div class="spread">
+    <!-- The text: board, history controls, and the game score. -->
     <section class="board-column">
-      <app-board
-        [fen]="fen() || l.startFen"
-        [orientation]="orientation()"
-        [movable]="phase() === 'awaiting'"
-        [lastMove]="lastMove()"
-        [check]="inCheck()"
-        [arrows]="arrows()"
-        (moved)="onMove($event)"
-      />
+      <div class="board-row">
+        <app-eval-bar [score]="boardScore()" [orientation]="orientation()" />
+        <app-board
+          class="board"
+          [class.viewing]="viewing() !== undefined"
+          [fen]="boardFen()"
+          [orientation]="orientation()"
+          [movable]="boardMovable()"
+          [lastMove]="boardLastMove()"
+          [check]="inCheck()"
+          [shapes]="shapes()"
+          (moved)="onMove($event)"
+        />
+      </div>
 
-      @if (section(); as s) {
-        <ol class="moves">
-          @for (p of s.plies; track $index) {
-            <li
-              [class.setup]="$index < s.firstStep"
-              [class.played]="$index < cursor()"
-              [class.current]="$index === cursor() && phase() !== 'done'"
-              [class.learner]="p.byLearner && p.step?.prompt"
-            >
-              {{ $index < cursor() || phase() === 'done' ? p.label : p.byLearner && p.step?.prompt ? '?' : '…' }}
-            </li>
+      <nav class="controls" aria-label="Move history">
+        <button class="icon" (click)="first()" [disabled]="!canGoBack()" title="First position (Home)" aria-label="First position">«</button>
+        <button class="icon" (click)="back()" [disabled]="!canGoBack()" title="Back (←)" aria-label="Back">‹</button>
+        <button class="icon" (click)="forward()" [disabled]="!canGoForward()" title="Forward (→)" aria-label="Forward">›</button>
+        <button class="icon" (click)="live()" [disabled]="!canGoForward()" title="Back to the lesson (End)" aria-label="Back to the lesson">»</button>
+      </nav>
+
+      @if (score().length) {
+        <p class="score">
+          @for (m of score(); track m.index) {
+            @if (m.white) {
+              <span class="number">{{ m.number }}.</span>
+            } @else if ($first) {
+              <span class="number">{{ m.number }}…</span>
+            }
+            @if (m.pending) {
+              <span class="move pending">?</span>
+            } @else {
+              <button
+                class="move"
+                [class.setup]="m.setup"
+                [class.learner]="m.ply.byLearner"
+                [class.at]="(viewing() ?? cursor()) === m.index"
+                (click)="view(m.index)"
+              >{{ m.ply.san }}</button>
+            }
           }
-        </ol>
+        </p>
       }
     </section>
 
-    <section class="panel">
+    <!-- The margin, where the scholia live. -->
+    <section class="margin">
       <header>
-        <a [routerLink]="['/course', l.course]">← Course</a>
-        <h1>{{ l.title }} <app-status-badge [status]="l.status" [review]="l.review" /></h1>
-        <p class="meta">You play {{ l.learner }} · starts after {{ l.start }}</p>
+        <a [routerLink]="['/course', l.course]" class="crumb">← Course</a>
+        <h1>{{ l.title }}</h1>
+        <p class="byline">
+          <app-status-badge [status]="l.status" [review]="l.review" />
+          <span>You play {{ l.learner }}</span>
+        </p>
       </header>
 
-      @switch (phase()) {
-        @case ('intro') {
-          <div class="card">
-            @if (l.intro) {
-              <app-scholium [scholium]="l.intro" />
+      @if (phase() !== 'intro') {
+        <div class="progress" role="group" aria-label="Sections">
+          @for (s of l.sections; track s.id) {
+            <button
+              class="segment"
+              [class.done]="completed().has(s.id)"
+              [class.active]="$index === sectionIndex()"
+              [class.trap]="s.kind === 'trap'"
+              [title]="s.title"
+              [attr.aria-label]="s.title"
+              (click)="start($index)"
+            ></button>
+          }
+        </div>
+        <p class="section-title">
+          <span class="kicker">{{ section()?.kind === 'trap' ? 'Trap' : 'Line' }} {{ sectionIndex() + 1 }} of {{ l.sections.length }}</span>
+          {{ section()?.title }}
+        </p>
+      }
+
+      @if (viewing() !== undefined) {
+        <div class="card history">
+          <p class="kicker">Looking back</p>
+          @if (viewedPly(); as p) {
+            <p class="headline">{{ p.label }}</p>
+            @if (p.step?.scholium; as s) {
+              <app-scholium [scholium]="s" />
             }
-            <button class="primary" (click)="start(0)">Start</button>
+            <ng-container *ngTemplateOutlet="engine; context: { $implicit: p.engine, san: p.san }" />
+          } @else {
+            <p class="headline">The starting position</p>
+          }
+          <div class="actions">
+            <button class="primary" (click)="live()">Back to the lesson <kbd>End</kbd></button>
           </div>
-        }
-
-        @case ('awaiting') {
-          <div class="card prompt">
-            <p class="label">Your move</p>
-            <p class="question">{{ current()?.step?.prompt }}</p>
-          </div>
-        }
-
-        @case ('playing') {
-          <div class="card muted">
-            <p>{{ l.learner === 'black' ? 'White' : 'Black' }} is moving…</p>
-          </div>
-        }
-
-        @case ('reading') {
-          @if (shown(); as p) {
-            <div class="card">
-              <p class="label">{{ p.label }}</p>
-              @if (p.step?.scholium; as s) {
-                <app-scholium [scholium]="s" />
+        </div>
+      } @else {
+        @switch (phase()) {
+          @case ('intro') {
+            <div class="card intro">
+              <p class="kicker">Before you begin</p>
+              @if (l.intro) {
+                <app-scholium [scholium]="l.intro" />
               }
-              <ng-container *ngTemplateOutlet="engine; context: { $implicit: p.engine, san: p.san }" />
-              <button class="primary" (click)="advance()">Continue</button>
+              <p class="muted">
+                {{ l.sections.length }} lines and traps. You play {{ l.learner }}; {{ opponent() }}'s moves are played for you.
+              </p>
+              <div class="actions">
+                <button class="primary" (click)="start(0)">Begin <kbd>Enter</kbd></button>
+              </div>
             </div>
           }
-        }
 
-        @case ('feedback') {
-          @if (feedback(); as f) {
-            <div class="card" [class.good]="f.kind === 'correct' || f.kind === 'alsoGood'" [class.bad]="f.kind === 'wrong'">
-              @switch (f.kind) {
-                @case ('correct') {
-                  <p class="verdict">✓ {{ f.ply.label }}</p>
+          @case ('playing') {
+            <div class="card quiet">
+              <p class="muted">{{ opponent() }} to move…</p>
+            </div>
+          }
+
+          @case ('reading') {
+            @if (shown(); as p) {
+              <div class="card">
+                <p class="kicker">{{ opponent() }} plays</p>
+                <p class="headline">{{ p.label }}</p>
+                @if (p.step?.scholium; as s) {
+                  <app-scholium [scholium]="s" />
                 }
-                @case ('revealed') {
-                  <p class="verdict">The move was {{ f.ply.label }}</p>
+                <ng-container *ngTemplateOutlet="engine; context: { $implicit: p.engine, san: p.san }" />
+                <div class="actions">
+                  <button class="primary" (click)="advance()">Continue <kbd>Enter</kbd></button>
+                </div>
+              </div>
+            }
+          }
+
+          @case ('awaiting') {
+            @if (shown(); as p) {
+              <div class="card context">
+                <p class="kicker">{{ opponent() }} played {{ p.label }}</p>
+                @if (p.step?.scholium; as s) {
+                  <app-scholium [scholium]="s" />
+                }
+              </div>
+            }
+            <div class="card prompt">
+              <p class="kicker">Your move</p>
+              <p class="headline">{{ current()?.step?.prompt }}</p>
+              @if (hintLevel() === 1) {
+                <p class="muted">Hint: the piece to move is circled.</p>
+              } @else if (hintLevel() === 2) {
+                <p class="muted">Hint: the move is drawn on the board.</p>
+              }
+              <div class="actions">
+                <button (click)="hint()" [disabled]="hintLevel() >= 2">
+                  {{ hintLevel() === 0 ? 'Hint' : 'Another hint' }} <kbd>H</kbd>
+                </button>
+                <button class="link" (click)="reveal()">Show me the move</button>
+              </div>
+            </div>
+          }
+
+          @case ('feedback') {
+            @if (feedback(); as f) {
+              @switch (f.kind) {
+                @case ('wrong') {
+                  <div class="card bad">
+                    <p class="kicker">Not quite</p>
+                    <p class="headline">{{ f.played }}?</p>
+                    @if (f.alternative; as a) {
+                      <ng-container *ngTemplateOutlet="engine; context: { $implicit: a.engine, san: f.played }" />
+                      @if (a.citations.length) {
+                        <p class="subhead">What the sources say about {{ f.played }}</p>
+                        <app-citations [citations]="a.citations" />
+                      }
+                      @if (a.reply; as r) {
+                        <p class="subhead">How the engine punishes it</p>
+                        <p class="line">{{ r.san.join(' ') }}</p>
+                        <div class="actions">
+                          @if (playingOut()) {
+                            <button (click)="stopPlayOut()">■ Stop ({{ playingOut() }}/{{ r.san.length }})</button>
+                          } @else {
+                            <button (click)="playOut()">▶ Play it out</button>
+                          }
+                        </div>
+                      }
+                    } @else {
+                      <p class="muted">Neither the engine's analysis nor any source covers {{ f.played }} here.</p>
+                    }
+                    <div class="actions">
+                      <button class="primary" (click)="retry()">Try again <kbd>Enter</kbd></button>
+                      <button class="link" (click)="reveal()">Show me the move</button>
+                    </div>
+                  </div>
                 }
                 @case ('alsoGood') {
-                  <p class="verdict">✓ {{ f.played }} is also good.</p>
-                  @if (f.engine) {
-                    <ng-container *ngTemplateOutlet="engine; context: { $implicit: f.engine, san: f.played }" />
-                  }
-                  <p>The lesson continues with {{ f.ply.label }}.</p>
-                  <button class="primary" (click)="continueWithLine()">Show {{ f.ply.san }}</button>
-                }
-                @case ('wrong') {
-                  <p class="verdict">✗ Not {{ f.played }}</p>
-                  @if (f.alternative; as a) {
-                    <ng-container *ngTemplateOutlet="engine; context: { $implicit: a.engine, san: f.played }" />
-                    @if (a.citations.length) {
-                      <p class="label">What the sources say about {{ f.played }}</p>
-                      <app-citations [citations]="a.citations" />
+                  <div class="card good">
+                    <p class="kicker">Also good</p>
+                    <p class="headline">{{ f.played }}</p>
+                    @if (f.engine) {
+                      <ng-container *ngTemplateOutlet="engine; context: { $implicit: f.engine, san: f.played }" />
                     }
-                  } @else {
-                    <p class="muted">The engine hasn't analysed {{ f.played }} here, and no source discusses it.</p>
-                  }
-                  <div class="actions">
-                    <button class="primary" (click)="retry()">Try again</button>
-                    <button (click)="reveal()">Show the move</button>
+                    <p>This lesson continues with {{ f.ply.label }}.</p>
+                    <div class="actions">
+                      <button class="primary" (click)="continueWithLine()">Show {{ f.ply.san }} <kbd>Enter</kbd></button>
+                    </div>
+                  </div>
+                }
+                @default {
+                  <div class="card" [class.good]="f.kind === 'correct'">
+                    <p class="kicker">{{ f.kind === 'correct' ? 'Correct' : 'The move' }}</p>
+                    <p class="headline">{{ f.ply.label }}</p>
+                    @if (f.ply.step?.scholium; as s) {
+                      <app-scholium [scholium]="s" />
+                    }
+                    @if (f.ply.step?.dispute; as d) {
+                      <p class="dispute">
+                        The engine disagrees with the source here: it prefers {{ d.engineBest }} ({{ d.bestScore }}) to
+                        {{ f.ply.san }} ({{ d.lineScore }}).
+                      </p>
+                    }
+                    <ng-container *ngTemplateOutlet="engine; context: { $implicit: f.ply.engine, san: f.ply.san }" />
+                    <div class="actions">
+                      <button class="primary" (click)="advance()">Continue <kbd>Enter</kbd></button>
+                    </div>
                   </div>
                 }
               }
+            }
+          }
 
-              @if (f.kind === 'correct' || f.kind === 'revealed') {
-                @if (f.ply.step?.scholium; as s) {
-                  <app-scholium [scholium]="s" />
-                }
-                @if (f.ply.step?.dispute; as d) {
-                  <p class="dispute">
-                    ⚠ The engine disagrees with the source here: it prefers {{ d.engineBest }} ({{ d.bestScore }}) to
-                    {{ f.ply.san }} ({{ d.lineScore }}).
-                  </p>
-                }
-                <ng-container *ngTemplateOutlet="engine; context: { $implicit: f.ply.engine, san: f.ply.san }" />
-                <button class="primary" (click)="advance()">Continue</button>
+          @case ('done') {
+            <div class="card good">
+              <p class="kicker">Section complete</p>
+              @let t = tally();
+              @if (t.prompts > 0) {
+                <p class="headline">
+                  {{ t.firstTry }} of {{ t.prompts }} found first time
+                  @if (t.hints) {
+                    <span class="muted">· {{ t.hints }} {{ t.hints === 1 ? 'hint' : 'hints' }}</span>
+                  }
+                </p>
               }
+              @if (section()?.next; as n) {
+                @for (next of n.lessons; track next.id) {
+                  <a class="button primary" [routerLink]="['/course', l.course, 'lesson', next.id]">Continue: {{ next.title }} →</a>
+                }
+                @if (n.options.length) {
+                  <p class="subhead">{{ n.fen.split(' ')[1] === 'w' ? 'White' : 'Black' }} to move. The options from here:</p>
+                  <ul class="options">
+                    @for (o of n.options; track o.uci) {
+                      <li>
+                        <span class="san" [class.good]="o.engine.good">{{ o.san }}</span>
+                        <span class="engine-inline">{{ o.engine.scoreAfter }}@if (o.engine.club) { · {{ o.engine.club }} }</span>
+                        @for (next of o.lessons; track next.id) {
+                          <a [routerLink]="['/course', l.course, 'lesson', next.id]">Lesson →</a>
+                        } @empty {
+                          <span class="muted">no lesson yet</span>
+                        }
+                      </li>
+                    }
+                  </ul>
+                }
+              }
+              <div class="actions">
+                @if (sectionIndex() + 1 < l.sections.length) {
+                  <button class="primary" (click)="start(sectionIndex() + 1)">
+                    Next: {{ l.sections[sectionIndex() + 1]!.title }} <kbd>Enter</kbd>
+                  </button>
+                }
+                <button (click)="restart()">Replay</button>
+              </div>
             </div>
           }
         }
-
-        @case ('done') {
-          <div class="card good">
-            <p class="verdict">Section complete</p>
-            @if (section()?.next; as n) {
-              @for (next of n.lessons; track next.id) {
-                <a class="primary button" [routerLink]="['/course', l.course, 'lesson', next.id]">Continue: {{ next.title }} →</a>
-              }
-              @if (n.options.length) {
-                <p class="label">{{ nextMover() }} to move · the options from here</p>
-                <ul class="options">
-                  @for (o of n.options; track o.uci) {
-                    <li>
-                      <strong>{{ o.san }}</strong>
-                      <span class="engine-inline">{{ o.engine.verdict }} · {{ o.engine.scoreAfter }}@if (o.engine.club) { · {{ o.engine.club }} }</span>
-                      @for (next of o.lessons; track next.id) {
-                        <a [routerLink]="['/course', l.course, 'lesson', next.id]">Lesson: {{ next.title }} →</a>
-                      } @empty {
-                        <span class="muted">no lesson yet</span>
-                      }
-                      @if (o.citations.length) {
-                        <app-citations [citations]="o.citations" />
-                      }
-                    </li>
-                  }
-                </ul>
-              }
-            }
-            <div class="actions">
-              @if (sectionIndex() + 1 < l.sections.length) {
-                <button class="primary" (click)="start(sectionIndex() + 1)">Next: {{ l.sections[sectionIndex() + 1]!.title }}</button>
-              }
-              <button (click)="restart()">Replay</button>
-            </div>
-          </div>
-        }
       }
 
-      <nav class="sections">
-        <p class="label">Sections</p>
+      <details class="contents" [open]="phase() === 'intro'">
+        <summary>Contents</summary>
         <ol>
           @for (s of l.sections; track s.id) {
             <li [class.active]="phase() !== 'intro' && $index === sectionIndex()">
               <button class="link" (click)="start($index)">
                 <span class="kind" [class.trap]="s.kind === 'trap'">{{ s.kind }}</span>
-                {{ s.title }}
-                @if (completed().has(s.id)) { ✓ }
+                <span>{{ s.title }}</span>
+                @if (completed().has(s.id)) {
+                  <span class="tick">✓</span>
+                }
               </button>
             </li>
           }
         </ol>
-      </nav>
+      </details>
+
+      <p class="keys"><kbd>←</kbd> <kbd>→</kbd> moves · <kbd>H</kbd> hint · <kbd>Enter</kbd> continue</p>
     </section>
   </div>
 } @else {
@@ -187,7 +304,10 @@
 <ng-template #engine let-note let-san="san">
   <p class="engine">
     <span class="tag">Engine</span>
-    {{ san }}: {{ note.verdict }} · {{ note.scoreAfter }} after
-    @if (note.club) { · {{ note.club }} }
+    {{ san }} {{ note.verdict === 'best' ? 'is the best move' : note.good ? 'is sound' : note.verdict }} ·
+    {{ note.scoreAfter }} after
+    @if (note.club) {
+      · {{ note.club }}
+    }
   </p>
 </ng-template>

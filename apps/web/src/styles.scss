@@ -1,40 +1,63 @@
+// Scholia's look: a scholar's book. Warm paper and ink, a book serif for the
+// text and commentary, rubric red for labels (as in manuscripts), and a calm
+// teal for the things you can do.
 :root {
   color-scheme: light dark;
-  --text: #1f2328;
-  --muted: #59636e;
-  --border: #d1d9e0;
-  --surface: #ffffff;
-  --background: #f6f8fa;
-  --accent: #2f6f9f;
-  --on-accent: #ffffff;
-  --good: #1a7f37;
-  --bad: #cf222e;
-  --warn: #9a6700;
-  --engine-bg: #eef1f4;
+  --serif: 'Iowan Old Style', 'Palatino Linotype', Palatino, 'Book Antiqua', Georgia, serif;
+  --sans: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
   --mono: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+
+  --text: #2a2520;
+  --muted: #6f665c;
+  --background: #f5f0e6;
+  --surface: #fffdf8;
+  --border: #d8cfbf;
+  --rule: #e6dece;
+  --hover: #efe7d8;
+  --accent: #1f6b70;
+  --on-accent: #fffdf8;
+  --rubric: #9a3b26;
+  --good: #2e7d4f;
+  --bad: #b3362b;
+  --warn: #9a6a00;
+  --engine-bg: #f1ebe0;
+  --eval-white: #f7f3ea;
+  --eval-black: #3b352f;
+  --board-shadow: 0 1px 2px rgb(60 45 30 / 0.15), 0 8px 24px rgb(60 45 30 / 0.12);
+  --card-shadow: 0 1px 2px rgb(60 45 30 / 0.06);
 }
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --text: #e6edf3;
-    --muted: #9198a1;
-    --border: #3d444d;
-    --surface: #151b23;
-    --background: #0d1117;
-    --accent: #4c9be0;
-    --on-accent: #0d1117;
-    --good: #3fb950;
-    --bad: #f85149;
-    --warn: #d29922;
-    --engine-bg: #212830;
+    --text: #ece4d6;
+    --muted: #a39887;
+    --background: #191612;
+    --surface: #221e19;
+    --border: #3d362e;
+    --rule: #332d26;
+    --hover: #2c2620;
+    --accent: #5fb3b3;
+    --on-accent: #191612;
+    --rubric: #d9876f;
+    --good: #6cc08a;
+    --bad: #ec7a6f;
+    --warn: #d6a84a;
+    --engine-bg: #2a251f;
+    --eval-white: #ece4d6;
+    --eval-black: #0f0d0b;
+    --board-shadow: 0 1px 2px rgb(0 0 0 / 0.4), 0 8px 24px rgb(0 0 0 / 0.35);
+    --card-shadow: none;
   }
 }
 
 body {
   margin: 0;
-  font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  font-family: var(--sans);
   color: var(--text);
   background: var(--background);
+  -webkit-font-smoothing: antialiased;
 }
 
 a { color: var(--accent); }
+
+h1, h2 { font-family: var(--serif); font-weight: 600; }

@@ -17,6 +17,12 @@ import type { Api } from 'chessground/api';
 import type { Config } from 'chessground/config';
 import type { Key } from 'chessground/types';
 
+export interface BoardShape {
+  orig: string;
+  dest?: string;
+  brush: 'green' | 'red' | 'blue' | 'yellow';
+}
+
 /** Lichess's chessground board. Legal moves come from chess-core. */
 @Component({
   selector: 'app-board',
@@ -35,8 +41,8 @@ export class Board {
   /** UCI of the move to highlight. */
   readonly lastMove = input<string | undefined>();
   readonly check = input(false);
-  /** Arrows to draw, e.g. the options at the end of a section. */
-  readonly arrows = input<{ uci: string; good: boolean }[]>([]);
+  /** Circles (no `dest`) and arrows to draw: hints, refutations, options. */
+  readonly shapes = input<BoardShape[]>([]);
   /** Emits the UCI of a move the user made (pawns reaching the last rank promote to a queen). */
   readonly moved = output<string>();
 
@@ -61,11 +67,7 @@ export class Board {
       },
       premovable: { enabled: false },
       drawable: {
-        autoShapes: this.arrows().map((a) => ({
-          orig: a.uci.slice(0, 2) as Key,
-          dest: a.uci.slice(2, 4) as Key,
-          brush: a.good ? 'green' : 'yellow',
-        })),
+        autoShapes: this.shapes().map((s) => ({ orig: s.orig as Key, ...(s.dest && { dest: s.dest as Key }), brush: s.brush })),
       },
       animation: { enabled: true, duration: 200 },
     };

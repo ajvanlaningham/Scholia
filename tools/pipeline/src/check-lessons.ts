@@ -11,7 +11,7 @@
 import { createHash } from 'node:crypto';
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
-import { type PlayedMove, playPgnMainline, playSan, playSanLine, playUci } from '@scholia/chess-core';
+import { type PlayedMove, playPgnMainline, playSan, playSanLine, playUci, playUciLine } from '@scholia/chess-core';
 import type {
   Alternative,
   Citation,
@@ -37,6 +37,8 @@ import { edgeId, type Tree } from './tree.ts';
 const WEB_CONTENT_DIR = process.env.SCHOLIA_WEB_CONTENT ?? join(REPO_ROOT, 'apps/web/public/content');
 // Accepted moves may give up at most this many win-chance points...
 const ACCEPTABLE_LOSS = 5;
+// Plies of the engine's reply line shown after a wrong move.
+const REPLY_PLIES = 6;
 // ...unless the learner is still this far ahead afterwards (win chance, 0–100):
 // in a decided position, any move that keeps the win is a correct answer.
 const STILL_WINNING = 80;
@@ -110,10 +112,19 @@ export async function compileCourse(
       .replace(/\n{3,}/g, '\n\n')
       .trim();
 
-  const citationOf = (a: SourceAnnotation): Citation => ({
+  /** "1.e4 e5 2.Nf3 Nc6" → "2...Nc6"; "1.e4 e5 2.Nf3" → "2.Nf3". Wiki pages are one per move. */
+function lastMoveLabel(line: string): string {
+  const tokens = line.split(' ');
+  const last = tokens.at(-1) ?? '';
+  if (/^\d+\./.test(last)) return last;
+  const number = /^(\d+)\./.exec(tokens.at(-2) ?? '')?.[1];
+  return number ? `${number}...${last}` : last;
+}
+
+const citationOf = (a: SourceAnnotation): Citation => ({
     title: a.source.title,
     ...(a.source.author && { author: a.source.author }),
-    ...(a.source.kind !== 'wiki' && a.source.locator && { locator: a.source.locator }),
+    ...(a.source.kind === 'wiki' ? { locator: lastMoveLabel(a.line) } : a.source.locator && { locator: a.source.locator }),
     ...(a.source.url && { url: a.source.url }),
     symbols: a.symbols ?? [],
     text: cleanSourceText(a.text),
@@ -332,12 +343,20 @@ export async function compileCourse(
         const alternatives: Alternative[] = [...candidateUcis].map((uci) => {
           const { loss, keepsWin: _keepsWin, ...engine } = engineNote(fen, fromKey, uci);
           const isAccepted = accepted.some((m) => m.uci === uci);
+          // The engine's continuation after the move: from the position's own
+          // search if the tree has it, else from this move's line before it.
+          const after = playUci(fen, uci);
+          const afterLine =
+            nodes.get(after.key)?.evaluation?.lines[0]?.uci ??
+            from?.evaluation?.lines.find((l) => l.uci[0] === uci)?.uci.slice(1);
+          const replyMoves = afterLine?.length ? playUciLine(after.fen, afterLine.slice(0, REPLY_PLIES)) : [];
           return {
-            san: playUci(fen, uci).san,
+            san: after.san,
             uci,
             accepted: isAccepted,
             engine,
             citations: (byMove.get(edgeId(fromKey, uci)) ?? []).map(citationOf),
+            ...(replyMoves.length > 0 && { reply: { uci: replyMoves.map((m) => m.uci), san: replyMoves.map((m) => m.san) } }),
           };
         });
 
@@ -362,6 +381,7 @@ export async function compileCourse(
         kind: section.kind,
         plies,
         firstStep: Math.max(firstStep, 0),
+        startScore: formatScore(nodes.get(rootKey)?.evaluation?.lines[0]),
         next: nextStep(lesson.id, fensBefore.at(-1)!, keysBefore.at(-1)!),
       });
     }

@@ -11,10 +11,24 @@ import { RouterLink, RouterOutlet } from '@angular/router';
     <main><router-outlet /></main>
   `,
   styles: `
-    .top { display: flex; align-items: baseline; gap: 0.75rem; padding: 0.75rem 1.5rem; border-bottom: 1px solid var(--border); }
-    .brand { font-weight: 700; font-size: 1.2rem; color: var(--text); text-decoration: none; }
-    .tagline { color: var(--muted); font-size: 0.85rem; }
-    main { padding: 1.5rem; max-width: 1280px; margin: 0 auto; }
+    .top {
+      display: flex;
+      align-items: baseline;
+      gap: 0.85rem;
+      padding: 0.9rem 2rem;
+      border-bottom: 1px solid var(--rule);
+    }
+    .brand {
+      font-family: var(--serif);
+      font-size: 1.35rem;
+      font-weight: 600;
+      letter-spacing: 0.02em;
+      color: var(--text);
+      text-decoration: none;
+    }
+    .brand::first-letter { color: var(--rubric); }
+    .tagline { font-family: var(--serif); font-style: italic; color: var(--muted); font-size: 0.95rem; }
+    main { padding: 1.75rem 2rem 3rem; max-width: 1180px; margin: 0 auto; }
   `,
   imports: [RouterOutlet, RouterLink],
   changeDetection: ChangeDetectionStrategy.OnPush,

@@ -74,6 +74,8 @@ export interface CompiledSection {
   plies: Ply[];
   /** Plies before this index are setup, played instantly. */
   firstStep: number;
+  /** Evaluation of the section's starting position, from White's view ("+0.97", "#-3", "—"). */
+  startScore: string;
   /** Where the section ends and what can happen next. */
   next: NextStep;
 }
@@ -137,6 +139,13 @@ export interface Alternative {
   engine: EngineNote;
   /** Source commentary on this move, if any. */
   citations: Citation[];
+  /** The engine's best continuation after this move, starting with the reply. */
+  reply?: EngineReply;
+}
+
+export interface EngineReply {
+  uci: string[];
+  san: string[];
 }
 
 /** Commentary at a move: a summary of cited sources, or the sources' judgments alone. */
