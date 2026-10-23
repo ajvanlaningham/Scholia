@@ -26,6 +26,17 @@
         <button class="icon" (click)="live()" [disabled]="!canGoForward()" title="Back to the lesson (End)" aria-label="Back to the lesson">»</button>
       </nav>
 
+      @if (phase() === 'intro' && approachScore().length) {
+        <p class="score approach">
+          @for (m of approachScore(); track $index) {
+            @if (m.white) {
+              <span class="number">{{ m.number }}.</span>
+            }
+            <span class="move setup">{{ m.san }}</span>
+          }
+        </p>
+      }
+
       @if (score().length) {
         <p class="score">
           @for (m of score(); track m.index) {
@@ -110,13 +121,14 @@
               </p>
               <div class="actions">
                 <button class="primary" (click)="start(0)">Begin <kbd>Enter</kbd></button>
+                <button class="link" (click)="playApproach()">Replay the opening</button>
               </div>
             </div>
           }
 
           @case ('playing') {
             <div class="card quiet">
-              <p class="muted">{{ opponent() }} to move…</p>
+              <p class="muted">{{ settingUp() ? 'Setting up the position…' : opponent() + ' to move…' }}</p>
             </div>
           }
 

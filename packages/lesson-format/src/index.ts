@@ -61,6 +61,9 @@ export interface CompiledLesson {
   start: string;
   /** Position after `start`. */
   startFen: string;
+  /** Where `start` begins (normally the initial position), and its moves, played out when the lesson opens. */
+  approachFen: string;
+  approach: { san: string; uci: string; fen: string }[];
   intro?: Scholium;
   review: ReviewProgress;
   sections: CompiledSection[];

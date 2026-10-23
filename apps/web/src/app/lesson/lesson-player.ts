@@ -26,6 +26,11 @@ import { Citations, ScholiumView } from './scholium-view';
 const OPPONENT_DELAY = 700;
 /** Milliseconds between moves when playing out the engine's punishment. */
 const PLAY_OUT_STEP = 750;
+/** Pace of the opening moves played out when a lesson opens, capped in total. */
+const APPROACH_STEP = 550;
+const APPROACH_MAX_TOTAL = 6000;
+/** Pace of the moves leading into a section. */
+const SETUP_STEP = 450;
 
 type Phase =
   | 'intro' // lesson introduction, before the first section
@@ -85,6 +90,10 @@ export class LessonPlayer {
   protected readonly viewing = signal<number | undefined>(undefined);
   /** The engine's punishment being played out on the board. */
   private readonly preview = signal<{ fen: string; lastMove: string; step: number } | undefined>(undefined);
+  /** How many of the lesson's opening moves have been played out on the intro board. */
+  protected readonly approachShown = signal(0);
+  /** The moves leading into a section are being played out. */
+  protected readonly settingUp = signal(false);
 
   protected readonly section = computed<CompiledSection | undefined>(
     () => this.lesson.value()?.sections[this.sectionIndex()],
@@ -107,12 +116,15 @@ export class LessonPlayer {
   protected readonly boardFen = computed(() => {
     const preview = this.preview();
     if (preview) return preview.fen;
+    const lesson = this.lesson.value();
+    if (this.phase() === 'intro' && lesson) return lesson.approach[this.approachShown() - 1]?.fen ?? lesson.approachFen;
     const k = this.viewing();
     return k === undefined ? this.liveFen() || (this.lesson.value()?.startFen ?? '') : this.fenAt(k);
   });
   protected readonly boardLastMove = computed(() => {
     const preview = this.preview();
     if (preview) return preview.lastMove;
+    if (this.phase() === 'intro') return this.lesson.value()?.approach[this.approachShown() - 1]?.uci;
     const k = this.viewing();
     return k === undefined ? this.liveLastMove() : this.section()?.plies[k - 1]?.uci;
   });
@@ -176,6 +188,15 @@ export class LessonPlayer {
 
   protected readonly playingOut = computed(() => this.preview()?.step);
 
+  /** The lesson's opening moves played so far, as a game score, while the lesson opens. */
+  protected readonly approachScore = computed(() =>
+    (this.lesson.value()?.approach ?? []).slice(0, this.approachShown()).map((m, i) => ({
+      san: m.san,
+      number: Math.floor(i / 2) + 1,
+      white: i % 2 === 0,
+    })),
+  );
+
   private readonly board = viewChild(Board);
   private timer?: ReturnType<typeof setTimeout>;
 
@@ -196,8 +217,30 @@ export class LessonPlayer {
         this.shown.set(undefined);
         this.viewing.set(undefined);
         this.completed.set(new Set());
+        this.approachShown.set(0);
       });
     });
+    // Once the lesson loads, play out the moves that lead to its starting position.
+    effect(() => {
+      if (this.lesson.value()) untracked(() => this.playApproach());
+    });
+  }
+
+  /** Plays the lesson's opening moves from the initial position on the intro board. */
+  protected playApproach(): void {
+    const moves = this.lesson.value()?.approach ?? [];
+    this.stopTimers();
+    this.approachShown.set(0);
+    const pace = Math.min(APPROACH_STEP, APPROACH_MAX_TOTAL / Math.max(moves.length, 1));
+    const step = () => {
+      if (this.phase() !== 'intro' || this.approachShown() >= moves.length) return;
+      this.timer = setTimeout(() => {
+        this.approachShown.update((n) => n + 1);
+        step();
+      }, pace);
+    };
+    // A beat on the initial position first, so the eye can find the board.
+    this.timer = setTimeout(step, pace);
   }
 
   // ── Lesson flow ──────────────────────────────────────────────────────────
@@ -207,18 +250,31 @@ export class LessonPlayer {
     if (!section) return;
     this.stopTimers();
     this.sectionIndex.set(index);
-    // Moves before the first step are setup: jump straight past them.
-    this.cursor.set(section.firstStep);
-    this.liveFen.set(this.fenAt(section.firstStep));
-    this.liveLastMove.set(section.plies[section.firstStep - 1]?.uci);
+    this.cursor.set(0);
+    this.liveFen.set(this.fenAt(0));
+    this.liveLastMove.set(undefined);
     this.tally.set(emptyTally());
     this.shown.set(undefined);
-    this.advance();
+    this.feedback.set(undefined);
+    this.viewing.set(undefined);
+    // Moves before the first step are setup: play them out, then begin.
+    this.settingUp.set(section.firstStep > 0);
+    this.phase.set('playing');
+    const setup = () => {
+      const ply = section.plies[this.cursor()];
+      if (this.cursor() >= section.firstStep || !ply) return this.advance();
+      this.timer = setTimeout(() => {
+        this.play(ply);
+        setup();
+      }, SETUP_STEP);
+    };
+    setup();
   }
 
   /** Plays forward until the learner has to move or read something. */
   protected advance(): void {
     this.stopTimers();
+    this.settingUp.set(false);
     this.viewing.set(undefined);
     this.feedback.set(undefined);
     const section = this.section();

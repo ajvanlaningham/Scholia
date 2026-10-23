@@ -214,7 +214,8 @@ const citationOf = (a: SourceAnnotation): Citation => ({
 
   function compile(lesson: Lesson, problems: string[], notes: string[], changed: { stamped: boolean }): CompiledLesson {
     const progress = { reviewed: 0, total: 0 };
-    const startMoves = playPgnMainline(lesson.start).moves;
+    const startGame = playPgnMainline(lesson.start);
+    const startMoves = startGame.moves;
     const rootFen = startMoves.at(-1)!.fen;
     const rootKey = startMoves.at(-1)!.key;
 
@@ -398,6 +399,8 @@ const citationOf = (a: SourceAnnotation): Citation => ({
       learner: lesson.learner,
       start: lesson.start,
       startFen: rootFen,
+      approachFen: startGame.startFen,
+      approach: startMoves.map((m) => ({ san: m.san, uci: m.uci, fen: m.fen })),
       ...(intro && { intro }),
       review: progress,
       sections,
