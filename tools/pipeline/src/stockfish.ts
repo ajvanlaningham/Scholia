@@ -1,7 +1,13 @@
 import { type ChildProcessWithoutNullStreams, spawn } from 'node:child_process';
+import { createHash } from 'node:crypto';
+import { mkdir, readFile, writeFile } from 'node:fs/promises';
+import { join } from 'node:path';
 import { createInterface } from 'node:readline';
-import { sideToMove } from '@scholia/chess-core';
+import { positionKey, sideToMove } from '@scholia/chess-core';
 import { engineLine, type Evaluation } from './evaluation.ts';
+import { REPO_ROOT } from './http.ts';
+
+const CACHE_DIR = join(REPO_ROOT, '.cache', 'stockfish');
 
 interface PvInfo {
   depth: number;
@@ -91,6 +97,24 @@ export class Stockfish {
         engineLine(fen, pv.uci, pv.mate === undefined ? { cp: sign * pv.cp! } : { mate: sign * pv.mate }),
       ),
     };
+  }
+
+  /**
+   * analyse() with an on-disk cache keyed by engine version, search settings,
+   * and position, so rebuilding a tree doesn't repeat local analysis.
+   */
+  async analyseCached(fen: string, opts: { nodes: number; multiPv: number }): Promise<Evaluation> {
+    const id = `${this.name}|nodes=${opts.nodes}|multipv=${opts.multiPv}|${positionKey(fen)}`;
+    const file = join(CACHE_DIR, `${createHash('sha256').update(id).digest('hex')}.json`);
+    try {
+      return JSON.parse(await readFile(file, 'utf8')) as Evaluation;
+    } catch {
+      // Not analysed with these settings yet.
+    }
+    const evaluation = await this.analyse(fen, opts);
+    await mkdir(CACHE_DIR, { recursive: true });
+    await writeFile(file, JSON.stringify(evaluation));
+    return evaluation;
   }
 
   quit(): void {

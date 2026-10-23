@@ -217,7 +217,7 @@ export async function buildTree(opening: OpeningConfig): Promise<void> {
   const evalStats = { cloud: 0, local: 0, none: 0 };
   for (const node of nodes.values()) {
     node.evaluation =
-      (await cloudEval(node.fen, MULTI_PV)) ?? (await engine?.analyse(node.fen, { nodes: LOCAL_NODES, multiPv: MULTI_PV }));
+      (await cloudEval(node.fen, MULTI_PV)) ?? (await engine?.analyseCached(node.fen, { nodes: LOCAL_NODES, multiPv: MULTI_PV }));
     evalStats[node.evaluation?.origin === 'lichess-cloud' ? 'cloud' : node.evaluation ? 'local' : 'none']++;
     process.stdout.write(`\rEvaluations: ${evalStats.cloud} cloud, ${evalStats.local} local, ${evalStats.none} none`);
   }
