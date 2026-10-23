@@ -1,0 +1,72 @@
+@if (index.error()) {
+  <p class="error">Couldn't load the course list. Run <code>pnpm lessons</code> to compile it.</p>
+} @else if (index.value()) {
+  <header class="lead">
+    <div>
+      <p class="kicker">The library</p>
+      <h1>Courses</h1>
+      <p class="intro">
+        Each opening is taught from both sides: how to play its idea, and how to meet it. Every explanation is drawn from
+        published commentary and checked against the engine.
+      </p>
+    </div>
+    <label class="toggle">
+      <input type="checkbox" [checked]="showDrafts()" (change)="setShowDrafts($any($event.target).checked)" />
+      Show courses in progress
+    </label>
+  </header>
+
+  @for (shelf of shelves(); track shelf.opening) {
+    <section class="shelf">
+      <div class="opening">
+        <div class="plate">
+          <app-board [fen]="shelf.rootFen" [thumbnail]="true" />
+        </div>
+        <div>
+          <p class="kicker">Opening</p>
+          <h2>{{ shelf.title }}</h2>
+          <p class="line">{{ compact(shelf.rootLine) }}</p>
+        </div>
+      </div>
+
+      <div class="courses">
+        @for (course of shelf.courses; track course.id) {
+          <a class="card" [routerLink]="['/course', course.id]">
+            <div class="thumb">
+              <app-board [fen]="course.rootFen" [orientation]="course.learner" [thumbnail]="true" />
+            </div>
+            <div class="body">
+              <p class="kicker">{{ course.stance === 'wield' ? 'Playing it' : 'Facing it' }} · as {{ side(course) }}</p>
+              <h3>{{ course.title }}</h3>
+              <p class="meta">{{ counts(course) }}</p>
+              <div class="status">
+                <app-status-badge [status]="course.status" />
+                @if (course.status !== 'published' && course.review.total > 0) {
+                  <span class="progress" [title]="course.review.reviewed + ' of ' + course.review.total + ' explanations reviewed'">
+                    <span class="fill" [style.width.%]="reviewedPercent(course)"></span>
+                  </span>
+                  <span class="meta">{{ course.review.reviewed }}/{{ course.review.total }} reviewed</span>
+                }
+              </div>
+            </div>
+            <span class="go" aria-hidden="true">→</span>
+          </a>
+        }
+      </div>
+    </section>
+  } @empty {
+    <div class="empty">
+      <p class="kicker">Nothing published yet</p>
+      @if (hiddenDrafts()) {
+        <p>
+          {{ hiddenDrafts() }} {{ hiddenDrafts() === 1 ? 'course is' : 'courses are' }} still being written. Tick
+          “Show courses in progress” to see {{ hiddenDrafts() === 1 ? 'it' : 'them' }}.
+        </p>
+      } @else {
+        <p>No courses yet.</p>
+      }
+    </div>
+  }
+} @else {
+  <p class="muted">Loading…</p>
+}

@@ -578,6 +578,7 @@ const citationOf = (a: SourceAnnotation): Citation => ({
     status: course.status ?? 'drafting',
     publishable,
     review: reviewTotals,
+    openingTitle: tree.opening,
     rootFen: tree.root.fen,
     rootLine: tree.root.approach,
     ...(overview && { overview }),
@@ -601,7 +602,12 @@ export async function compileAllCourses(): Promise<{ course: CompiledCourse; pro
 /** Lists every compiled course for the web app's home page. */
 export async function writeCourseIndex(courses: CompiledCourse[]): Promise<void> {
   const index: CourseIndex = {
-    courses: courses.map(({ lessons, ...summary }) => ({ ...summary, lessons: lessons.length })),
+    courses: courses.map(({ lessons, overview: _overview, ...summary }) => ({
+      ...summary,
+      lessons: lessons.length,
+      lines: lessons.reduce((n, l) => n + l.lines, 0),
+      traps: lessons.reduce((n, l) => n + l.traps, 0),
+    })),
   };
   await mkdir(WEB_CONTENT_DIR, { recursive: true });
   await writeFile(join(WEB_CONTENT_DIR, 'index.json'), `${JSON.stringify(index, null, 2)}\n`);

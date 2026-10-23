@@ -1,0 +1,182 @@
+// The library: a short lead, then one shelf per opening with its courses.
+:host { display: block; max-width: 960px; margin: 0 auto; }
+
+.kicker {
+  display: block;
+  margin: 0 0 0.25rem;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--rubric);
+}
+
+// ── Lead ───────────────────────────────────────────────────────────────────
+
+.lead {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  flex-wrap: wrap;
+  gap: 1rem 2rem;
+  margin: 0.5rem 0 2.5rem;
+  padding-bottom: 2rem;
+  border-bottom: 1px solid var(--rule);
+
+  h1 {
+    margin: 0 0 0.6rem;
+    font-family: var(--serif);
+    font-size: 2.6rem;
+    line-height: 1.1;
+  }
+}
+
+.intro {
+  max-width: 34rem;
+  margin: 0;
+  font-family: var(--serif);
+  font-size: 1.05rem;
+  line-height: 1.55;
+  color: var(--muted);
+}
+
+.toggle {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.85rem;
+  color: var(--muted);
+  cursor: pointer;
+
+  input { accent-color: var(--accent); }
+}
+
+// ── Shelves ────────────────────────────────────────────────────────────────
+
+.shelf { margin-bottom: 3rem; }
+
+.opening {
+  display: flex;
+  align-items: center;
+  gap: 1.1rem;
+  margin-bottom: 1.1rem;
+
+  .plate {
+    width: 72px;
+    flex: none;
+    border-radius: 3px;
+    overflow: hidden;
+    box-shadow: var(--board-shadow);
+  }
+  h2 {
+    margin: 0;
+    font-family: var(--serif);
+    font-size: 1.6rem;
+    line-height: 1.15;
+  }
+  .line {
+    margin: 0.2rem 0 0;
+    font-family: var(--serif);
+    font-size: 0.92rem;
+    color: var(--muted);
+  }
+}
+
+.courses {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(340px, 1fr));
+  gap: 1rem;
+}
+
+.card {
+  display: grid;
+  grid-template-columns: 110px 1fr auto;
+  gap: 1.1rem;
+  align-items: center;
+  padding: 0.9rem 1.1rem 0.9rem 0.9rem;
+  border: 1px solid var(--rule);
+  border-radius: 8px;
+  background: var(--surface);
+  box-shadow: var(--card-shadow);
+  color: var(--text);
+  text-decoration: none;
+  transition: border-color 150ms ease, transform 150ms ease, box-shadow 150ms ease;
+
+  &:hover {
+    border-color: var(--accent);
+    transform: translateY(-1px);
+    box-shadow: var(--board-shadow);
+
+    .go { color: var(--accent); transform: translateX(3px); }
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .card, .card:hover, .card:hover .go { transition: none; transform: none; }
+}
+
+.thumb {
+  border-radius: 3px;
+  overflow: hidden;
+  box-shadow: 0 1px 3px rgb(0 0 0 / 0.15);
+}
+
+.body {
+  min-width: 0;
+
+  h3 {
+    margin: 0.1rem 0 0.35rem;
+    font-family: var(--serif);
+    font-size: 1.35rem;
+    font-weight: 700;
+  }
+}
+
+.meta {
+  margin: 0;
+  font-size: 0.8rem;
+  color: var(--muted);
+}
+
+.status {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  margin-top: 0.6rem;
+}
+
+// Review progress: a slim bar rather than another badge.
+.progress {
+  position: relative;
+  width: 4.5rem;
+  height: 4px;
+  border-radius: 2px;
+  background: var(--rule);
+  overflow: hidden;
+
+  .fill {
+    position: absolute;
+    inset: 0 auto 0 0;
+    background: var(--good);
+  }
+}
+
+.go {
+  font-size: 1.4rem;
+  color: var(--muted);
+  transition: transform 150ms ease, color 150ms ease;
+}
+
+.empty {
+  max-width: 34rem;
+  padding: 1.25rem;
+  border: 1px dashed var(--border);
+  border-radius: 8px;
+  color: var(--muted);
+
+  p { margin: 0; }
+  .kicker { margin-bottom: 0.4rem; }
+}
+
+.muted { color: var(--muted); }
+.error { color: var(--bad); }

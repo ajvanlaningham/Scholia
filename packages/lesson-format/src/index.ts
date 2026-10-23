@@ -20,6 +20,13 @@ export interface CourseSummary {
   id: string;
   title: string;
   opening: string;
+  /** The opening's full name, e.g. "Traxler Counterattack". */
+  openingTitle: string;
+  /** The opening's root position and the moves that reach it, e.g. "1. e4 e5 2. Nf3 …". */
+  rootFen: string;
+  rootLine: string;
+  lines: number;
+  traps: number;
   learner: 'white' | 'black';
   /** "wield": the learner plays the opening's idea. "face": the learner meets it. */
   stance: 'wield' | 'face';
@@ -31,11 +38,8 @@ export interface CourseSummary {
 }
 
 /** content/courses/<id>.json; its lessons are at content/lessons/<course>/<lesson>.json. */
-export interface CompiledCourse extends Omit<CourseSummary, 'lessons'> {
-  /** The opening's root position and the moves that reach it, e.g. "1. e4 e5 2. Nf3 …". */
-  rootFen: string;
-  rootLine: string;
-  /** The first lesson's sourced introduction, as the course's overview. */
+export interface CompiledCourse extends Omit<CourseSummary, 'lessons' | 'lines' | 'traps'> {
+  /** The course's sourced overview, or the first lesson's introduction. */
   overview?: Scholium;
   /** In course order: each lesson follows the lesson it continues from. */
   lessons: CourseLesson[];

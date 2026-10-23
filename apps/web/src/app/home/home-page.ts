@@ -2,72 +2,59 @@ import { httpResource } from '@angular/common/http';
 import { ChangeDetectionStrategy, Component, computed, effect, signal } from '@angular/core';
 import { RouterLink } from '@angular/router';
 import type { CourseIndex, CourseSummary } from '@scholia/lesson-format';
-import { indexUrl, stanceLabel } from '../content';
+import { Board } from '../board/board';
+import { indexUrl } from '../content';
 import { StatusBadge } from '../status-badge';
 
 const SHOW_DRAFTS_KEY = 'scholia.showDrafts';
 
-/** Every course, grouped by opening: playing it and facing it side by side. */
+/** One opening and its courses: playing it first, then facing it. */
+interface Shelf {
+  opening: string;
+  title: string;
+  rootFen: string;
+  rootLine: string;
+  courses: CourseSummary[];
+}
+
+/** The library: every opening, each with its courses side by side. */
 @Component({
   selector: 'app-home-page',
-  template: `
-    @if (index.error()) {
-      <p class="error">Couldn't load the course list. Run <code>pnpm lessons</code> to compile it.</p>
-    } @else if (index.value()) {
-      <header>
-        <h1>Courses</h1>
-        <label class="meta">
-          <input type="checkbox" [checked]="showDrafts()" (change)="setShowDrafts($any($event.target).checked)" />
-          Show courses in progress
-        </label>
-      </header>
-      @for (group of byOpening(); track group[0]) {
-        <section>
-          <h2>{{ group[0] }}</h2>
-          <ul>
-            @for (course of group[1]; track course.id) {
-              <li>
-                <a [routerLink]="['/course', course.id]">{{ course.title }}</a>
-                <app-status-badge [status]="course.status" [review]="course.review" />
-                <span class="meta">{{ label(course) }} · {{ course.lessons }} {{ course.lessons === 1 ? 'lesson' : 'lessons' }}</span>
-              </li>
-            }
-          </ul>
-        </section>
-      } @empty {
-        <p class="meta">No published courses yet. Tick "Show courses in progress" to see drafts.</p>
-      }
-    } @else {
-      <p class="meta">Loading…</p>
-    }
-  `,
-  styles: `
-    header { display: flex; align-items: baseline; justify-content: space-between; flex-wrap: wrap; gap: 0.5rem; }
-    h2 { font-size: 1.1rem; margin-bottom: 0.25rem; text-transform: capitalize; }
-    ul { list-style: none; padding: 0; margin: 0; }
-    li { margin: 0.4rem 0; display: flex; align-items: baseline; flex-wrap: wrap; gap: 0.5rem; }
-    .meta { color: var(--muted); font-size: 0.85rem; }
-    .error { color: var(--bad); }
-  `,
-  imports: [RouterLink, StatusBadge],
+  templateUrl: './home-page.html',
+  styleUrl: './home-page.scss',
+  imports: [RouterLink, Board, StatusBadge],
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class HomePage {
   protected readonly index = httpResource<CourseIndex>(indexUrl);
 
   /** Off: published courses only (the family view). Remembered per browser. */
-  protected readonly showDrafts = signal<boolean>(readStoredToggle());
+  protected readonly showDrafts = signal<boolean>(readStored() === 'true');
 
-  protected readonly byOpening = computed(() => {
-    const groups = new Map<string, CourseSummary[]>();
+  protected readonly shelves = computed<Shelf[]>(() => {
+    const shelves = new Map<string, Shelf>();
     for (const course of this.index.value()?.courses ?? []) {
       if (course.status !== 'published' && !this.showDrafts()) continue;
-      groups.set(course.opening, [...(groups.get(course.opening) ?? []), course]);
+      const shelf = shelves.get(course.opening) ?? {
+        opening: course.opening,
+        title: course.openingTitle,
+        rootFen: course.rootFen,
+        rootLine: course.rootLine,
+        courses: [],
+      };
+      shelf.courses.push(course);
+      shelves.set(course.opening, shelf);
     }
-    return [...groups];
+    for (const shelf of shelves.values()) {
+      shelf.courses.sort((a, b) => Number(a.stance === 'face') - Number(b.stance === 'face'));
+    }
+    return [...shelves.values()];
   });
 
-  protected readonly label = (c: CourseSummary) => stanceLabel(c.stance, c.learner);
+  /** Courses hidden by the published-only view, to say so rather than show an empty page. */
+  protected readonly hiddenDrafts = computed(
+    () => (this.index.value()?.courses ?? []).filter((c) => c.status !== 'published').length,
+  );
 
   constructor() {
     // With nothing published yet, an empty page helps nobody: show drafts
@@ -86,6 +73,24 @@ export class HomePage {
       // Storage unavailable (private mode): the toggle still works for this visit.
     }
   }
+
+  protected readonly side = (c: CourseSummary) => (c.learner === 'white' ? 'White' : 'Black');
+
+  /** "1. e4 e5 2. Nf3" → "1.e4 e5 2.Nf3" */
+  protected readonly compact = (line: string) => line.replace(/(\d+)\. /g, '$1.');
+
+  /** "4 lessons · 12 lines · 5 traps" */
+  protected readonly counts = (c: CourseSummary) =>
+    [
+      `${c.lessons} ${c.lessons === 1 ? 'lesson' : 'lessons'}`,
+      c.lines && `${c.lines} ${c.lines === 1 ? 'line' : 'lines'}`,
+      c.traps && `${c.traps} ${c.traps === 1 ? 'trap' : 'traps'}`,
+    ]
+      .filter(Boolean)
+      .join(' · ');
+
+  protected readonly reviewedPercent = (c: CourseSummary) =>
+    c.review.total ? Math.round((100 * c.review.reviewed) / c.review.total) : 0;
 }
 
 function readStored(): string | null {
@@ -95,5 +100,3 @@ function readStored(): string | null {
     return null;
   }
 }
-
-const readStoredToggle = () => readStored() === 'true';
