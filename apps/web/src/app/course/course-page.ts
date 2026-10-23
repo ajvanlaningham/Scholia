@@ -3,6 +3,7 @@ import { ChangeDetectionStrategy, Component, input } from '@angular/core';
 import { RouterLink } from '@angular/router';
 import type { CompiledCourse } from '@scholia/lesson-format';
 import { courseUrl, stanceLabel } from '../content';
+import { StatusBadge } from '../status-badge';
 
 @Component({
   selector: 'app-course-page',
@@ -11,7 +12,7 @@ import { courseUrl, stanceLabel } from '../content';
       <p class="error">Couldn't load course "{{ courseId() }}". Run <code>pnpm lessons</code> to compile it.</p>
     } @else if (course.value(); as c) {
       <a routerLink="/">← Courses</a>
-      <h1>{{ c.title }}</h1>
+      <h1>{{ c.title }} <app-status-badge [status]="c.status" [review]="c.review" /></h1>
       <p class="meta stance">{{ label(c.stance, c.learner) }}</p>
       @if (c.lessons.length === 0) {
         <p class="meta stance">No lessons yet.</p>
@@ -21,7 +22,8 @@ import { courseUrl, stanceLabel } from '../content';
           <li [style.margin-left.rem]="depth(c, lesson.id) * 1.5">
             @if (lesson.continues) { <span class="meta">↳</span> }
             <a [routerLink]="['/course', c.id, 'lesson', lesson.id]">{{ lesson.title }}</a>
-            <span class="meta">{{ lesson.sections }} sections · {{ lesson.status }}</span>
+            <app-status-badge [status]="lesson.status" [review]="lesson.review" />
+            <span class="meta">{{ lesson.sections }} sections</span>
           </li>
         }
       </ol>
@@ -36,7 +38,7 @@ import { courseUrl, stanceLabel } from '../content';
     .stance { margin-left: 0; }
     .error { color: var(--bad); }
   `,
-  imports: [RouterLink],
+  imports: [RouterLink, StatusBadge],
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class CoursePage {

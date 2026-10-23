@@ -21,12 +21,19 @@ export interface OpeningConfig {
 /** "wield": the learner plays the opening's idea. "face": the learner meets it. */
 export type Stance = 'wield' | 'face';
 
+/**
+ * backlog → researching (tree and sources being built) → ready (enough sources
+ * to teach) → drafting → review → published (every lesson reviewed).
+ */
+export type CourseStatus = 'backlog' | 'researching' | 'ready' | 'drafting' | 'review' | 'published';
+
 export interface CourseConfig {
   id: string;
   title: string;
   opening: string;
   learner: 'white' | 'black';
   stance: Stance;
+  status: CourseStatus;
 }
 
 export const openingDir = (id: string) => join(CONTENT_DIR, 'openings', id);

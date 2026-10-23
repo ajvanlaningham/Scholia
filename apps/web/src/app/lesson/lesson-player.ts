@@ -17,6 +17,7 @@ import { playUci } from '@scholia/chess-core';
 import type { Alternative, CompiledLesson, CompiledSection, EngineNote, Ply } from '@scholia/lesson-format';
 import { Board } from '../board/board';
 import { lessonUrl } from '../content';
+import { StatusBadge } from '../status-badge';
 import { Citations, ScholiumView } from './scholium-view';
 
 /** Milliseconds before the opponent's move is played. */
@@ -39,7 +40,7 @@ type Feedback =
   selector: 'app-lesson-player',
   templateUrl: './lesson-player.html',
   styleUrl: './lesson-player.scss',
-  imports: [Board, ScholiumView, Citations, RouterLink, NgTemplateOutlet],
+  imports: [Board, ScholiumView, Citations, RouterLink, NgTemplateOutlet, StatusBadge],
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class LessonPlayer {

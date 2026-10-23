@@ -8,6 +8,7 @@
 //   - <id>.review.md beside the lesson: each draft above the full text it
 //     cites, so a human can confirm the summary adds nothing;
 //   - the compiled lesson (@scholia/lesson-format) for the web app.
+import { createHash } from 'node:crypto';
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { type PlayedMove, playPgnMainline, playSan, playSanLine, playUci } from '@scholia/chess-core';
@@ -52,6 +53,8 @@ interface Explanation {
   form?: string;
   status: 'drafted' | 'reviewed';
   cites: Cite[];
+  /** Fingerprint of the cited text when the explanation was reviewed; stamped by the checker. */
+  reviewedAgainst?: string;
 }
 
 interface Step {
@@ -198,7 +201,8 @@ export async function compileCourse(
     return { fen, lessons: startingAt(key, lessonId), options };
   }
 
-  function compile(lesson: Lesson, problems: string[], notes: string[]): CompiledLesson {
+  function compile(lesson: Lesson, problems: string[], notes: string[], changed: { stamped: boolean }): CompiledLesson {
+    const progress = { reviewed: 0, total: 0 };
     const startMoves = playPgnMainline(lesson.start).moves;
     const rootFen = startMoves.at(-1)!.fen;
     const rootKey = startMoves.at(-1)!.key;
@@ -227,15 +231,28 @@ export async function compileCourse(
       if (!explanation) return undefined;
       if (explanation.text !== null && explanation.cites.length === 0) problems.push(`${where}: explanation text without a citation`);
       if (explanation.text !== null && !FORMS.includes(explanation.form ?? '')) problems.push(`${where}: missing or unknown form`);
-      return {
-        text: explanation.text,
-        ...(explanation.form && { form: explanation.form }),
-        status: explanation.status,
-        citations: explanation.cites
-          .map((c) => resolveCite(c, where))
-          .filter((a): a is SourceAnnotation => a !== undefined)
-          .map(citationOf),
-      };
+      const citations = explanation.cites
+        .map((c) => resolveCite(c, where))
+        .filter((a): a is SourceAnnotation => a !== undefined)
+        .map(citationOf);
+
+      // A review holds only for the text that was reviewed. Stamp a fingerprint
+      // of the cited text on first check after review; flag it if the text changes.
+      progress.total++;
+      if (explanation.status === 'reviewed') {
+        progress.reviewed++;
+        const fingerprint = createHash('sha256')
+          .update(JSON.stringify(citations.map((c) => [c.title, c.locator, c.symbols, c.text])))
+          .digest('hex')
+          .slice(0, 16);
+        if (!explanation.reviewedAgainst) {
+          explanation.reviewedAgainst = fingerprint;
+          changed.stamped = true;
+        } else if (explanation.reviewedAgainst !== fingerprint) {
+          problems.push(`${where}: cited text changed since this was reviewed; re-review it, then delete "reviewedAgainst"`);
+        }
+      }
+      return { text: explanation.text, ...(explanation.form && { form: explanation.form }), status: explanation.status, citations };
     }
 
     const sections: CompiledSection[] = [];
@@ -350,6 +367,9 @@ export async function compileCourse(
     }
 
     const intro = scholium(lesson.intro, 'intro');
+    if (lesson.status === 'reviewed' && progress.reviewed < progress.total) {
+      problems.push(`lesson is marked reviewed, but ${progress.total - progress.reviewed} of ${progress.total} explanations aren't`);
+    }
     return {
       id: lesson.id,
       course: lesson.course,
@@ -359,6 +379,7 @@ export async function compileCourse(
       start: lesson.start,
       startFen: rootFen,
       ...(intro && { intro }),
+      review: progress,
       sections,
     };
   }
@@ -405,7 +426,12 @@ export async function compileCourse(
     const notes: string[] = [];
     if (lesson.course !== course.id) problems.push(`${lesson.id}: "course" is "${lesson.course}", expected "${course.id}"`);
     if (lesson.learner !== course.learner) problems.push(`${lesson.id}: learner is ${lesson.learner}, but the course teaches ${course.learner}`);
-    const compiled = compile(lesson, problems, notes);
+    const changed = { stamped: false };
+    const compiled = compile(lesson, problems, notes, changed);
+    if (changed.stamped) {
+      await writeFile(join(LESSONS_DIR, files[i]!), `${JSON.stringify(lesson, null, 2)}\n`);
+      notes.push('stamped newly reviewed explanations with the cited text they were reviewed against');
+    }
     totalProblems += problems.length;
     compiledLessons.push(compiled);
 
@@ -430,7 +456,7 @@ export async function compileCourse(
   const visit = (l: CompiledLesson) => {
     if (ordered.some((o) => o.id === l.id)) return;
     const from = continues.get(l.id);
-    ordered.push({ id: l.id, title: l.title, status: l.status, sections: l.sections.length, ...(from && { continues: from }) });
+    ordered.push({ id: l.id, title: l.title, status: l.status, review: l.review, sections: l.sections.length, ...(from && { continues: from }) });
     const sectionOrder = (c: CompiledLesson) => l.sections.findIndex((s) => s.id === continues.get(c.id)?.section);
     const children = compiledLessons.filter((c) => continues.get(c.id)?.lesson === l.id);
     for (const child of children.sort((a, b) => sectionOrder(a) - sectionOrder(b))) visit(child);
@@ -438,12 +464,24 @@ export async function compileCourse(
   for (const root of compiledLessons.filter((l) => !continues.has(l.id))) visit(root);
   for (const l of compiledLessons) visit(l); // lessons in a cycle
 
+  const reviewTotals = {
+    reviewed: compiledLessons.reduce((n, l) => n + l.review.reviewed, 0),
+    total: compiledLessons.reduce((n, l) => n + l.review.total, 0),
+  };
+  const publishable = compiledLessons.length > 0 && totalProblems === 0 && compiledLessons.every((l) => l.status === 'reviewed');
+  if (course.status === 'published' && !publishable) {
+    console.log('  ✗ course is marked published, but not every lesson is reviewed and problem-free');
+    totalProblems++;
+  }
   const compiledCourse: CompiledCourse = {
     id: course.id,
     title: course.title,
     opening: course.opening,
     learner: course.learner,
     stance: course.stance,
+    status: course.status ?? 'drafting',
+    publishable,
+    review: reviewTotals,
     lessons: ordered,
   };
   await writeFile(join(WEB_CONTENT_DIR, 'courses', `${course.id}.json`), `${JSON.stringify(compiledCourse, null, 2)}\n`);

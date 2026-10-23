@@ -34,7 +34,7 @@
     <section class="panel">
       <header>
         <a [routerLink]="['/course', l.course]">← Course</a>
-        <h1>{{ l.title }}</h1>
+        <h1>{{ l.title }} <app-status-badge [status]="l.status" [review]="l.review" /></h1>
         <p class="meta">You play {{ l.learner }} · starts after {{ l.start }}</p>
       </header>
 

@@ -8,6 +8,14 @@ export interface CourseIndex {
   courses: CourseSummary[];
 }
 
+export type CourseStatus = 'backlog' | 'researching' | 'ready' | 'drafting' | 'review' | 'published';
+
+/** Explanations reviewed by a human out of those written. */
+export interface ReviewProgress {
+  reviewed: number;
+  total: number;
+}
+
 export interface CourseSummary {
   id: string;
   title: string;
@@ -15,6 +23,10 @@ export interface CourseSummary {
   learner: 'white' | 'black';
   /** "wield": the learner plays the opening's idea. "face": the learner meets it. */
   stance: 'wield' | 'face';
+  status: CourseStatus;
+  /** Every lesson reviewed and no checker problems. */
+  publishable: boolean;
+  review: ReviewProgress;
   lessons: number;
 }
 
@@ -28,6 +40,7 @@ export interface CourseLesson {
   id: string;
   title: string;
   status: string;
+  review: ReviewProgress;
   sections: number;
   /** The lesson and section this one continues from, found by matching positions. */
   continues?: { lesson: string; section: string };
@@ -49,6 +62,7 @@ export interface CompiledLesson {
   /** Position after `start`. */
   startFen: string;
   intro?: Scholium;
+  review: ReviewProgress;
   sections: CompiledSection[];
 }
 
