@@ -33,6 +33,9 @@
               "node_modules/chessground/assets/chessground.base.css",
               "node_modules/chessground/assets/chessground.brown.css",
               "node_modules/chessground/assets/chessground.cburnett.css",
+              "node_modules/@fontsource/libre-caslon-text/400.css",
+              "node_modules/@fontsource/libre-caslon-text/400-italic.css",
+              "node_modules/@fontsource/libre-caslon-text/700.css",
               "src/styles.scss"
             ]
           },

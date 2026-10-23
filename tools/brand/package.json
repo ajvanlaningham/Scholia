@@ -1,0 +1,12 @@
+{
+  "name": "@scholia/brand",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "trace": "node trace-logo.mjs"
+  },
+  "dependencies": {
+    "pngjs": "^7.0.0",
+    "potrace": "^2.1.8"
+  }
+}
