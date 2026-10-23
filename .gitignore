@@ -1,0 +1,9 @@
+node_modules/
+.cache/
+# Gathered and generated content lives outside the code repo (see ScholiaProjectProposal.md section 6).
+content/
+# Local secrets and settings; see .env.example.
+.env
+
+# Compiled lessons served by the web app during development.
+apps/web/public/content/

@@ -1,0 +1,193 @@
+@if (lesson.error()) {
+  <p class="error">
+    Couldn't load lesson "{{ id() }}". Run <code>pnpm spike:lessons</code> to compile it.
+  </p>
+} @else if (lesson.value(); as l) {
+  <div class="layout">
+    <section class="board-column">
+      <app-board
+        [fen]="fen() || l.startFen"
+        [orientation]="orientation()"
+        [movable]="phase() === 'awaiting'"
+        [lastMove]="lastMove()"
+        [check]="inCheck()"
+        [arrows]="arrows()"
+        (moved)="onMove($event)"
+      />
+
+      @if (section(); as s) {
+        <ol class="moves">
+          @for (p of s.plies; track $index) {
+            <li
+              [class.setup]="$index < s.firstStep"
+              [class.played]="$index < cursor()"
+              [class.current]="$index === cursor() && phase() !== 'done'"
+              [class.learner]="p.byLearner && p.step?.prompt"
+            >
+              {{ $index < cursor() || phase() === 'done' ? p.label : p.byLearner && p.step?.prompt ? '?' : '…' }}
+            </li>
+          }
+        </ol>
+      }
+    </section>
+
+    <section class="panel">
+      <header>
+        <a [routerLink]="['/course', l.course]">← Course</a>
+        <h1>{{ l.title }}</h1>
+        <p class="meta">You play {{ l.learner }} · starts after {{ l.start }}</p>
+      </header>
+
+      @switch (phase()) {
+        @case ('intro') {
+          <div class="card">
+            @if (l.intro) {
+              <app-scholium [scholium]="l.intro" />
+            }
+            <button class="primary" (click)="start(0)">Start</button>
+          </div>
+        }
+
+        @case ('awaiting') {
+          <div class="card prompt">
+            <p class="label">Your move</p>
+            <p class="question">{{ current()?.step?.prompt }}</p>
+          </div>
+        }
+
+        @case ('playing') {
+          <div class="card muted">
+            <p>{{ l.learner === 'black' ? 'White' : 'Black' }} is moving…</p>
+          </div>
+        }
+
+        @case ('reading') {
+          @if (shown(); as p) {
+            <div class="card">
+              <p class="label">{{ p.label }}</p>
+              @if (p.step?.scholium; as s) {
+                <app-scholium [scholium]="s" />
+              }
+              <ng-container *ngTemplateOutlet="engine; context: { $implicit: p.engine, san: p.san }" />
+              <button class="primary" (click)="advance()">Continue</button>
+            </div>
+          }
+        }
+
+        @case ('feedback') {
+          @if (feedback(); as f) {
+            <div class="card" [class.good]="f.kind === 'correct' || f.kind === 'alsoGood'" [class.bad]="f.kind === 'wrong'">
+              @switch (f.kind) {
+                @case ('correct') {
+                  <p class="verdict">✓ {{ f.ply.label }}</p>
+                }
+                @case ('revealed') {
+                  <p class="verdict">The move was {{ f.ply.label }}</p>
+                }
+                @case ('alsoGood') {
+                  <p class="verdict">✓ {{ f.played }} is also good.</p>
+                  @if (f.engine) {
+                    <ng-container *ngTemplateOutlet="engine; context: { $implicit: f.engine, san: f.played }" />
+                  }
+                  <p>The lesson continues with {{ f.ply.label }}.</p>
+                  <button class="primary" (click)="continueWithLine()">Show {{ f.ply.san }}</button>
+                }
+                @case ('wrong') {
+                  <p class="verdict">✗ Not {{ f.played }}</p>
+                  @if (f.alternative; as a) {
+                    <ng-container *ngTemplateOutlet="engine; context: { $implicit: a.engine, san: f.played }" />
+                    @if (a.citations.length) {
+                      <p class="label">What the sources say about {{ f.played }}</p>
+                      <app-citations [citations]="a.citations" />
+                    }
+                  } @else {
+                    <p class="muted">The engine hasn't analysed {{ f.played }} here, and no source discusses it.</p>
+                  }
+                  <div class="actions">
+                    <button class="primary" (click)="retry()">Try again</button>
+                    <button (click)="reveal()">Show the move</button>
+                  </div>
+                }
+              }
+
+              @if (f.kind === 'correct' || f.kind === 'revealed') {
+                @if (f.ply.step?.scholium; as s) {
+                  <app-scholium [scholium]="s" />
+                }
+                @if (f.ply.step?.dispute; as d) {
+                  <p class="dispute">
+                    ⚠ The engine disagrees with the source here: it prefers {{ d.engineBest }} ({{ d.bestScore }}) to
+                    {{ f.ply.san }} ({{ d.lineScore }}).
+                  </p>
+                }
+                <ng-container *ngTemplateOutlet="engine; context: { $implicit: f.ply.engine, san: f.ply.san }" />
+                <button class="primary" (click)="advance()">Continue</button>
+              }
+            </div>
+          }
+        }
+
+        @case ('done') {
+          <div class="card good">
+            <p class="verdict">Section complete</p>
+            @if (section()?.next; as n) {
+              @for (next of n.lessons; track next.id) {
+                <a class="primary button" [routerLink]="['/lesson', next.id]">Continue: {{ next.title }} →</a>
+              }
+              @if (n.options.length) {
+                <p class="label">{{ nextMover() }} to move · the options from here</p>
+                <ul class="options">
+                  @for (o of n.options; track o.uci) {
+                    <li>
+                      <strong>{{ o.san }}</strong>
+                      <span class="engine-inline">{{ o.engine.verdict }} · {{ o.engine.scoreAfter }}@if (o.engine.club) { · {{ o.engine.club }} }</span>
+                      @for (next of o.lessons; track next.id) {
+                        <a [routerLink]="['/lesson', next.id]">Lesson: {{ next.title }} →</a>
+                      } @empty {
+                        <span class="muted">no lesson yet</span>
+                      }
+                      @if (o.citations.length) {
+                        <app-citations [citations]="o.citations" />
+                      }
+                    </li>
+                  }
+                </ul>
+              }
+            }
+            <div class="actions">
+              @if (sectionIndex() + 1 < l.sections.length) {
+                <button class="primary" (click)="start(sectionIndex() + 1)">Next: {{ l.sections[sectionIndex() + 1]!.title }}</button>
+              }
+              <button (click)="restart()">Replay</button>
+            </div>
+          </div>
+        }
+      }
+
+      <nav class="sections">
+        <p class="label">Sections</p>
+        <ol>
+          @for (s of l.sections; track s.id) {
+            <li [class.active]="phase() !== 'intro' && $index === sectionIndex()">
+              <button class="link" (click)="start($index)">
+                <span class="kind" [class.trap]="s.kind === 'trap'">{{ s.kind }}</span>
+                {{ s.title }}
+                @if (completed().has(s.id)) { ✓ }
+              </button>
+            </li>
+          }
+        </ol>
+      </nav>
+    </section>
+  </div>
+} @else {
+  <p class="muted">Loading…</p>
+}
+
+<ng-template #engine let-note let-san="san">
+  <p class="engine">
+    <span class="tag">Engine</span>
+    {{ san }}: {{ note.verdict }} · {{ note.scoreAfter }} after
+    @if (note.club) { · {{ note.club }} }
+  </p>
+</ng-template>

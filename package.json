@@ -1,0 +1,25 @@
+{
+  "name": "scholia",
+  "private": true,
+  "type": "module",
+  "packageManager": "pnpm@10.34.7",
+  "engines": {
+    "node": ">=24"
+  },
+  "scripts": {
+    "test": "pnpm -r test",
+    "typecheck": "pnpm -r typecheck",
+    "spike:traxler": "pnpm --filter @scholia/spike traxler",
+    "spike:candidates": "pnpm --filter @scholia/spike candidates",
+    "spike:wikibooks": "pnpm --filter @scholia/spike wikibooks",
+    "spike:studies": "pnpm --filter @scholia/spike studies",
+    "spike:coverage": "pnpm --filter @scholia/spike coverage",
+    "spike:dossier": "pnpm --filter @scholia/spike dossier",
+    "spike:lessons": "pnpm --filter @scholia/spike lessons",
+    "web": "pnpm --filter @scholia/web start"
+  },
+  "devDependencies": {
+    "@types/node": "^26.6.5",
+    "typescript": "^7.0.2"
+  }
+}
