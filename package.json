@@ -1,6 +1,8 @@
 {
   "name": "scholia",
   "private": true,
+  "license": "GPL-3.0-or-later",
+  "author": "Alex VanLaningham",
   "type": "module",
   "packageManager": "pnpm@10.34.7",
   "engines": {

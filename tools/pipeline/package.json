@@ -1,6 +1,8 @@
 {
   "name": "@scholia/pipeline",
   "private": true,
+  "license": "GPL-3.0-or-later",
+  "author": "Alex VanLaningham",
   "type": "module",
   "scripts": {
     "cli": "node --env-file-if-exists=../../.env src/cli.ts",

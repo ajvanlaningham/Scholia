@@ -9,6 +9,8 @@
     "typecheck": "tsc -p tsconfig.app.json --noEmit"
   },
   "private": true,
+  "license": "GPL-3.0-or-later",
+  "author": "Alex VanLaningham",
   "dependencies": {
     "@angular/common": "^22.2.0",
     "@angular/compiler": "^22.2.0",

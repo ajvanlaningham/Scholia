@@ -349,7 +349,7 @@ No authentication: profiles are a picker, not accounts. Expose the app only on l
 | Incorrect chess commentary | Confident but wrong teaching is worse than no teaching | Legal validation, engine checks, citations, review statuses |
 | Scraping brittleness and site terms | Scrapers break; some sites prohibit them and may ban accounts | API-first order; scrape only as last resort; never scrape Chess.com; cache aggressively |
 | Content leaking into a published repo | Gathered content is fine privately but not to redistribute | Content directory outside the code repo |
-| GPL dependencies | chessops and chessground are GPL-3.0; the repo is currently MIT | Irrelevant for private use; if the code is ever published, relicense as GPL-3.0 (or swap libraries) — verify licenses before release |
+| GPL dependencies | chessops and chessground are GPL-3.0-or-later | Resolved: the code repo is licensed GPL-3.0-or-later (October 2026), matching its dependencies |
 | Position normalization / transpositions | Duplicate branches and wrong opening classification | Position graph, `chess-core` as single authority, transposition tests |
 | Engine performance | Full analysis of many games can saturate a homelab | Cloud eval first, job budgets, priority queue, caching, Compose CPU limits |
 | False claims about improvement | Ratings and win rates are noisy | Cohorts, time-control segregation, sample sizes, cautious wording |
@@ -401,7 +401,8 @@ Still open:
 | Explanations | Published expert commentary is primary; AI only summarizes cited sources, never originates | — |
 | Game sources | Lichess and Chess.com via official APIs | After real import testing |
 | Deployment | Docker Compose on homelab | — |
-| Publishing model | Private; code possibly open-sourced later, content never | Before any release |
+| Publishing model | Code public on GitHub under GPL-3.0-or-later; content private in a separate repo, never published | Before sharing the content |
+| Code license | GPL-3.0-or-later (was MIT), matching chessops/chessground | — |
 
 ## 17. Definition of success
 

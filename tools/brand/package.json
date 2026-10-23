@@ -1,6 +1,8 @@
 {
   "name": "@scholia/brand",
   "private": true,
+  "license": "GPL-3.0-or-later",
+  "author": "Alex VanLaningham",
   "type": "module",
   "scripts": {
     "trace": "node trace-logo.mjs"

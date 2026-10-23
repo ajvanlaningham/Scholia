@@ -1,6 +1,8 @@
 {
   "name": "@scholia/lesson-format",
   "private": true,
+  "license": "GPL-3.0-or-later",
+  "author": "Alex VanLaningham",
   "type": "module",
   "exports": {
     ".": "./src/index.ts"
