@@ -27,7 +27,7 @@ import type {
   Ply,
   Scholium,
 } from '@scholia/lesson-format';
-import { type CourseConfig, lessonFiles, lessonsDir, listCourses, loadTree } from './config.ts';
+import { type CourseConfig, courseDir, lessonFiles, lessonsDir, listCourses, loadTree } from './config.ts';
 import { formatScore, moveLoss, winChanceFor } from './evaluation.ts';
 import { REPO_ROOT } from './http.ts';
 import { totalGames } from './lichess.ts';
@@ -514,8 +514,51 @@ const citationOf = (a: SourceAnnotation): Citation => ({
   for (const root of compiledLessons.filter((l) => !continues.has(l.id))) visit(root);
   for (const l of compiledLessons) visit(l); // lessons in a cycle
 
-  const firstLesson = compiledLessons.find((l) => l.id === ordered[0]?.id);
-  const overview = firstLesson?.intro;
+  // The course's own overview if it has one; otherwise the first lesson's introduction.
+  const overview = (await courseOverview()) ?? compiledLessons.find((l) => l.id === ordered[0]?.id)?.intro;
+  async function courseOverview(): Promise<Scholium | undefined> {
+    const o = course.overview;
+    if (!o) return undefined;
+    const problem = (p: string) => {
+      issues.push(`course overview: ${p}`);
+      totalProblems++;
+      console.log(`  ✗ course overview: ${p}`);
+    };
+    const citations = o.cites.flatMap((cite) => {
+      const ref = course.sources?.[cite.source];
+      if (!ref) {
+        problem(`unknown source "${cite.source}"`);
+        return [];
+      }
+      let key = tree.root.key;
+      try {
+        key = playSanLine(tree.root.fen, sansOf(cite.at)).at(-1)?.key ?? tree.root.key;
+      } catch (error) {
+        problem(`citation "${cite.at}" is not a legal line (${(error as Error).message})`);
+        return [];
+      }
+      const found = annotations.find(
+        (a) => a.toKey === key && a.source.title === ref.title && (!ref.author || a.source.author === ref.author),
+      );
+      if (!found) problem(`no ${cite.source} annotation at "${cite.at || 'the root'}"`);
+      return found ? [citationOf(found)] : [];
+    });
+    if (citations.length === 0) problem('overview text without a citation');
+    if (o.status === 'reviewed') {
+      const fingerprint = createHash('sha256')
+        .update(JSON.stringify(citations.map((c) => [c.title, c.locator, c.symbols, c.text])))
+        .digest('hex')
+        .slice(0, 16);
+      if (!o.reviewedAgainst) {
+        o.reviewedAgainst = fingerprint;
+        await writeFile(join(courseDir(course.id), 'course.json'), `${JSON.stringify(course, null, 2)}\n`);
+      } else if (o.reviewedAgainst !== fingerprint) {
+        problem('cited text changed since this was reviewed; re-review it, then delete "reviewedAgainst"');
+      }
+    }
+    return { text: o.text, form: o.form, status: o.status, citations };
+  }
+
   const reviewTotals = {
     reviewed: compiledLessons.reduce((n, l) => n + l.review.reviewed, 0),
     total: compiledLessons.reduce((n, l) => n + l.review.total, 0),

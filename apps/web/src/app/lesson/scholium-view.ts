@@ -66,7 +66,7 @@ export class Citations {
     @let s = scholium();
     @if (s.text) {
       <p class="text">
-        {{ s.text }}@for (c of s.citations; track $index) {<sup>{{ $index + 1 }}</sup>}
+        {{ s.text }}@for (c of s.citations; track $index) {<sup>{{ $index + 1 }}{{ $last ? '' : ',' }}</sup>}
       </p>
     } @else {
       <p class="judgement">

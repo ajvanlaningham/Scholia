@@ -34,6 +34,19 @@ export interface CourseConfig {
   learner: 'white' | 'black';
   stance: Stance;
   status: CourseStatus;
+  /** Sources the overview cites, by key: { title, author? }. */
+  sources?: Record<string, { title: string; author?: string }>;
+  /**
+   * "About this opening": a summary of cited sources, written like a lesson
+   * explanation. Citations' `at` is relative to the opening's root position.
+   */
+  overview?: {
+    text: string;
+    form: string;
+    status: 'drafted' | 'reviewed';
+    cites: { source: string; at: string }[];
+    reviewedAgainst?: string;
+  };
 }
 
 export const openingDir = (id: string) => join(CONTENT_DIR, 'openings', id);

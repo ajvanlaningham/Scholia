@@ -3,8 +3,9 @@
 //   2. rebuild every opening's tree and every course's reports;
 //   3. re-check every lesson, which flags reviews whose cited text changed;
 //   4. write content/reports/<date>.md;
-//   5. commit sources/, openings/ and reports/ to the content repo. Lessons are
-//      never committed automatically, so in-progress edits stay the author's.
+//   5. commit sources/, openings/ and reports/ to the content repo, then push.
+//      Lessons are never committed automatically, so in-progress edits stay
+//      the author's (though earlier commits of them are pushed).
 // Each stage records its failure and the run continues.
 import { execFile } from 'node:child_process';
 import { createHash } from 'node:crypto';
@@ -98,6 +99,7 @@ export async function refresh({ refetch = true } = {}): Promise<void> {
   console.log(`\nWrote ${reportFile}`);
 
   await commitGathered(date);
+  await push();
 }
 
 function renderReport(
@@ -143,6 +145,21 @@ function renderReport(
   return `${lines.join('\n')}\n`;
 }
 
+const inContent = (...args: string[]) => git('git', ['-C', CONTENT_DIR, ...args]);
+
+/** Pushes the content repo, which makes the remote a weekly backup. Failures are logged, not fatal. */
+async function push(): Promise<void> {
+  const remote = await inContent('remote').then((r) => r.stdout.trim(), () => '');
+  if (!remote) return;
+  try {
+    await inContent('push', '--quiet');
+    console.log('Pushed the content repo.');
+  } catch (error) {
+    console.error(`✗ push failed: ${(error as Error).message}`);
+    process.exitCode = 1;
+  }
+}
+
 /** Commits gathered data and the report, if the content directory is a git repo with changes. */
 async function commitGathered(date: string): Promise<void> {
   try {
@@ -151,7 +168,6 @@ async function commitGathered(date: string): Promise<void> {
     console.log('Content directory is not a git repo; nothing committed.');
     return;
   }
-  const inContent = (...args: string[]) => git('git', ['-C', CONTENT_DIR, ...args]);
   await inContent('add', '--', ...COMMITTED_PATHS);
   const staged = await inContent('diff', '--cached', '--quiet', '--', ...COMMITTED_PATHS).then(
     () => false,
