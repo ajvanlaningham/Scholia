@@ -86,7 +86,11 @@ export class LessonPlayer {
   /** The live position; differs from the line after a wrong or alternative move. */
   private readonly liveFen = signal('');
   private readonly liveLastMove = signal<string | undefined>(undefined);
-  /** Browsing history: how many of the section's plies the board shows; undefined is live. */
+  /**
+   * Browsing history, as an index over the whole game: 0 is where the lesson's
+   * moves begin (normally the initial position), then each opening move, then
+   * each move of the current section. Undefined is live.
+   */
   protected readonly viewing = signal<number | undefined>(undefined);
   /** The engine's punishment being played out on the board. */
   private readonly preview = signal<{ fen: string; lastMove: string; step: number } | undefined>(undefined);
@@ -102,47 +106,81 @@ export class LessonPlayer {
   protected readonly orientation = computed(() => this.lesson.value()?.learner ?? 'white');
   protected readonly opponent = computed(() => (this.orientation() === 'white' ? 'Black' : 'White'));
 
+  private readonly approach = computed(() => this.lesson.value()?.approach ?? []);
+  /** History index of the lesson's start: the end of its opening moves. */
+  private readonly base = computed(() => this.approach().length);
+
   /** The position after `k` plies of the current section. */
   private fenAt(k: number): string {
     const plies = this.section()?.plies ?? [];
     return k === 0 ? (plies[0]?.fenBefore ?? this.lesson.value()?.startFen ?? '') : plies[k - 1]!.fenAfter;
   }
 
+  /** The move that reached history index `g` (none at 0). */
+  private moveAt(g: number): { san: string; uci: string; fen: string } | undefined {
+    const base = this.base();
+    if (g > base) {
+      const ply = this.section()?.plies[g - base - 1];
+      return ply && { san: ply.san, uci: ply.uci, fen: ply.fenAfter };
+    }
+    return g > 0 ? this.approach()[g - 1] : undefined;
+  }
+
+  private fenAtIndex(g: number): string {
+    return g === 0 ? (this.lesson.value()?.approachFen ?? '') : g === this.base() ? this.fenAt(0) : (this.moveAt(g)?.fen ?? '');
+  }
+
   /** The live board is on the lesson's line (not showing a deviation). */
   private readonly liveOnLine = computed(() => this.liveFen() === this.fenAt(this.cursor()));
-  /** Where "live" sits in history: on the last played move, or one past it after a deviation. */
+  /** Where live play sits in the section: on the last played move, or one past it after a deviation. */
   private readonly liveIndex = computed(() => (this.liveOnLine() ? this.cursor() : this.cursor() + 1));
+  /** Where live play sits in the whole game's history. */
+  private readonly liveAt = computed(() => (this.phase() === 'intro' ? this.approachShown() : this.base() + this.liveIndex()));
+  /** The history index highlighted in the score. */
+  protected readonly atIndex = computed(
+    () => this.viewing() ?? (this.phase() === 'intro' ? this.approachShown() : this.base() + this.cursor()),
+  );
 
   protected readonly boardFen = computed(() => {
     const preview = this.preview();
     if (preview) return preview.fen;
+    const g = this.viewing();
+    if (g !== undefined) return this.fenAtIndex(g);
     const lesson = this.lesson.value();
     if (this.phase() === 'intro' && lesson) return lesson.approach[this.approachShown() - 1]?.fen ?? lesson.approachFen;
-    const k = this.viewing();
-    return k === undefined ? this.liveFen() || (this.lesson.value()?.startFen ?? '') : this.fenAt(k);
+    return this.liveFen() || (lesson?.startFen ?? '');
   });
   protected readonly boardLastMove = computed(() => {
     const preview = this.preview();
     if (preview) return preview.lastMove;
-    if (this.phase() === 'intro') return this.lesson.value()?.approach[this.approachShown() - 1]?.uci;
-    const k = this.viewing();
-    return k === undefined ? this.liveLastMove() : this.section()?.plies[k - 1]?.uci;
+    const g = this.viewing();
+    if (g !== undefined) return this.moveAt(g)?.uci;
+    if (this.phase() === 'intro') return this.approach()[this.approachShown() - 1]?.uci;
+    return this.liveLastMove();
   });
   protected readonly boardMovable = computed(() => this.phase() === 'awaiting' && this.viewing() === undefined);
   protected readonly inCheck = computed(() => {
-    const k = this.viewing() ?? this.cursor();
-    const last = this.section()?.plies[k - 1];
+    const g = this.viewing();
+    if (g !== undefined) return /[+#]$/.test(this.moveAt(g)?.san ?? '');
+    if (this.phase() === 'intro') return /[+#]$/.test(this.approach()[this.approachShown() - 1]?.san ?? '');
+    const last = this.section()?.plies[this.cursor() - 1];
     return this.boardFen() === last?.fenAfter && /[+#]$/.test(last.san);
   });
 
   /** Evaluation of the position on the board, from White's view. */
   protected readonly boardScore = computed(() => {
     const section = this.section();
-    if (!section || this.phase() === 'intro') return '—';
+    if (!section) return '—';
+    const g = this.viewing();
+    if (g !== undefined) {
+      const k = g - this.base();
+      return k < 0 ? '—' : k === 0 ? section.startScore : section.plies[k - 1]!.engine.scoreAfter;
+    }
+    if (this.phase() === 'intro') return '—';
     const f = this.feedback();
-    if (this.viewing() === undefined && f?.kind === 'wrong') return f.alternative?.engine.scoreAfter ?? '—';
-    if (this.viewing() === undefined && f?.kind === 'alsoGood') return f.engine?.scoreAfter ?? '—';
-    const k = this.viewing() ?? this.cursor();
+    if (f?.kind === 'wrong') return f.alternative?.engine.scoreAfter ?? '—';
+    if (f?.kind === 'alsoGood') return f.engine?.scoreAfter ?? '—';
+    const k = this.cursor();
     return k === 0 ? section.startScore : section.plies[k - 1]!.engine.scoreAfter;
   });
 
@@ -170,32 +208,40 @@ export class LessonPlayer {
     return [];
   });
 
-  /** The section's moves as a game score: what's been played, then the move being asked for. */
+  /**
+   * The whole game as a score: the opening moves leading to the lesson, then
+   * the section's moves so far, then the move being asked for.
+   */
   protected readonly score = computed(() => {
+    const lesson = this.lesson.value();
+    if (!lesson) return [];
+    const intro = this.phase() === 'intro';
+    const entry = (fenBefore: string, san: string, g: number) => {
+      const [, turn, , , , fullmove] = fenBefore.split(' ');
+      return { g, san, number: fullmove ?? '', white: turn === 'w' };
+    };
+    const opening = lesson.approach
+      .slice(0, intro ? this.approachShown() : undefined)
+      .map((m, i) => ({
+        ...entry(i === 0 ? lesson.approachFen : lesson.approach[i - 1]!.fen, m.san, i + 1),
+        kind: 'opening' as 'opening' | 'setup' | 'move',
+        learner: false,
+        pending: false,
+      }));
     const section = this.section();
-    if (!section || this.phase() === 'intro') return [];
+    if (intro || !section) return opening;
     const played = this.phase() === 'done' ? section.plies.length : this.cursor();
     const asking = this.phase() === 'awaiting' || this.feedback()?.kind === 'wrong' || this.feedback()?.kind === 'alsoGood';
-    return section.plies.slice(0, played + (asking ? 1 : 0)).map((p, i) => ({
-      ply: p,
-      index: i + 1,
-      number: p.label.replace(/\..*$/, ''),
-      white: !p.label.includes('...'),
+    const moves = section.plies.slice(0, played + (asking ? 1 : 0)).map((p, i) => ({
+      ...entry(p.fenBefore, p.san, this.base() + i + 1),
+      kind: (i < section.firstStep ? 'setup' : 'move') as 'opening' | 'setup' | 'move',
+      learner: p.byLearner && !!p.step?.prompt,
       pending: i === played,
-      setup: i < section.firstStep,
     }));
+    return [...opening, ...moves];
   });
 
   protected readonly playingOut = computed(() => this.preview()?.step);
-
-  /** The lesson's opening moves played so far, as a game score, while the lesson opens. */
-  protected readonly approachScore = computed(() =>
-    (this.lesson.value()?.approach ?? []).slice(0, this.approachShown()).map((m, i) => ({
-      san: m.san,
-      number: Math.floor(i / 2) + 1,
-      white: i % 2 === 0,
-    })),
-  );
 
   private readonly board = viewChild(Board);
   private timer?: ReturnType<typeof setTimeout>;
@@ -411,23 +457,24 @@ export class LessonPlayer {
 
   // ── History ──────────────────────────────────────────────────────────────
 
-  protected readonly canGoBack = computed(() => this.phase() !== 'intro' && (this.viewing() ?? this.liveIndex()) > 0);
+  protected readonly canGoBack = computed(() => (this.viewing() ?? this.liveAt()) > 0);
   protected readonly canGoForward = computed(() => this.viewing() !== undefined);
 
   protected back(): void {
     if (!this.canGoBack()) return;
-    this.stopTimers();
-    this.viewing.set(Math.min((this.viewing() ?? this.liveIndex()) - 1, this.cursor()));
+    // Measured before pausing, so going back mid-playback steps from where it was.
+    const from = this.viewing() ?? this.liveAt();
+    this.pauseForHistory();
+    this.viewing.set(from - 1);
   }
 
   protected forward(): void {
-    const k = this.viewing();
-    if (k !== undefined) this.view(k + 1);
+    const g = this.viewing();
+    if (g !== undefined) this.view(g + 1);
   }
 
   protected first(): void {
-    if (this.phase() === 'intro') return;
-    this.stopTimers();
+    this.pauseForHistory();
     this.viewing.set(0);
   }
 
@@ -435,17 +482,31 @@ export class LessonPlayer {
     this.viewing.set(undefined);
   }
 
-  /** Shows the position after `k` plies; returns to live when that's where play is. */
-  protected view(k: number): void {
-    this.stopTimers();
-    const end = this.phase() === 'done' ? (this.section()?.plies.length ?? 0) : this.liveIndex();
-    this.viewing.set(k >= end ? undefined : k);
+  /** Shows history index `g`; returns to live when that's where play is. */
+  protected view(g: number): void {
+    this.pauseForHistory();
+    const end = this.phase() === 'done' ? this.base() + (this.section()?.plies.length ?? 0) : this.liveAt();
+    this.viewing.set(g >= end ? undefined : g);
   }
 
-  /** The move that led to the viewed position, for its commentary. */
+  /** Stops any animation; on the intro, the opening counts as fully played. */
+  private pauseForHistory(): void {
+    this.stopTimers();
+    if (this.phase() === 'intro') this.approachShown.set(this.base());
+  }
+
+  /** The section move that led to the viewed position, for its commentary. */
   protected readonly viewedPly = computed(() => {
-    const k = this.viewing();
-    return k === undefined || k === 0 ? undefined : this.section()?.plies[k - 1];
+    const g = this.viewing();
+    return g === undefined || g <= this.base() ? undefined : this.section()?.plies[g - this.base() - 1];
+  });
+
+  /** The opening move that led to the viewed position, labelled like "3.Bc4". */
+  protected readonly viewedOpening = computed(() => {
+    const g = this.viewing();
+    if (g === undefined || g === 0 || g > this.base()) return undefined;
+    const m = this.score().find((e) => e.g === g);
+    return m && `${m.number}${m.white ? '.' : '...'}${m.san}`;
   });
 
   // ── Keyboard ─────────────────────────────────────────────────────────────

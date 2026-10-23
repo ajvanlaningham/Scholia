@@ -26,20 +26,9 @@
         <button class="icon" (click)="live()" [disabled]="!canGoForward()" title="Back to the lesson (End)" aria-label="Back to the lesson">»</button>
       </nav>
 
-      @if (phase() === 'intro' && approachScore().length) {
-        <p class="score approach">
-          @for (m of approachScore(); track $index) {
-            @if (m.white) {
-              <span class="number">{{ m.number }}.</span>
-            }
-            <span class="move setup">{{ m.san }}</span>
-          }
-        </p>
-      }
-
       @if (score().length) {
         <p class="score">
-          @for (m of score(); track m.index) {
+          @for (m of score(); track m.g) {
             @if (m.white) {
               <span class="number">{{ m.number }}.</span>
             } @else if ($first) {
@@ -50,11 +39,12 @@
             } @else {
               <button
                 class="move"
-                [class.setup]="m.setup"
-                [class.learner]="m.ply.byLearner"
-                [class.at]="(viewing() ?? cursor()) === m.index"
-                (click)="view(m.index)"
-              >{{ m.ply.san }}</button>
+                [class.opening]="m.kind === 'opening'"
+                [class.setup]="m.kind === 'setup'"
+                [class.learner]="m.learner"
+                [class.at]="atIndex() === m.g"
+                (click)="view(m.g)"
+              >{{ m.san }}</button>
             }
           }
         </p>
@@ -101,8 +91,13 @@
               <app-scholium [scholium]="s" />
             }
             <ng-container *ngTemplateOutlet="engine; context: { $implicit: p.engine, san: p.san }" />
+          } @else if (viewedOpening(); as label) {
+            <p class="headline">{{ label }}</p>
+            <p class="muted">One of the moves that lead to this lesson's starting position.</p>
+          } @else if (viewing() === 0) {
+            <p class="headline">The initial position</p>
           } @else {
-            <p class="headline">The starting position</p>
+            <p class="headline">The lesson's starting position</p>
           }
           <div class="actions">
             <button class="primary" (click)="live()">Back to the lesson <kbd>End</kbd></button>
