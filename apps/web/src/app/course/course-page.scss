@@ -1,0 +1,184 @@
+// A course as a book: a title page (the opening's position, your side, what
+// it's about), then a table of contents of lessons.
+:host { display: block; max-width: 960px; margin: 0 auto; }
+
+.crumb { font-size: 0.85rem; text-decoration: none; }
+
+.kicker {
+  display: block;
+  margin: 0 0 0.25rem;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--rubric);
+}
+
+// ── Title page ─────────────────────────────────────────────────────────────
+
+.title-page {
+  display: grid;
+  grid-template-columns: 260px 1fr;
+  gap: 2.5rem;
+  align-items: start;
+  margin: 1.25rem 0 2.5rem;
+  padding-bottom: 2.5rem;
+  border-bottom: 1px solid var(--rule);
+}
+
+@media (max-width: 760px) {
+  .title-page { grid-template-columns: 1fr; gap: 1.5rem; }
+  .plate { max-width: 260px; }
+}
+
+.plate {
+  app-board { border-radius: 3px; overflow: hidden; box-shadow: var(--board-shadow); }
+  .caption {
+    margin: 0.6rem 0 0;
+    font-family: var(--serif);
+    font-size: 0.88rem;
+    color: var(--muted);
+    text-align: center;
+  }
+}
+
+.titles {
+  h1 {
+    margin: 0.1rem 0 0.4rem;
+    font-family: var(--serif);
+    font-size: 2.4rem;
+    line-height: 1.1;
+  }
+}
+
+.byline {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin: 0 0 1.5rem;
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
+.overview {
+  max-width: 34rem;
+  padding: 1rem 1.15rem;
+  border-left: 3px solid var(--rule);
+  background: var(--surface);
+  border-radius: 0 6px 6px 0;
+}
+
+// ── Contents ───────────────────────────────────────────────────────────────
+
+.contents h2 {
+  margin: 0 0 1.25rem;
+  font-size: 1.35rem;
+}
+
+.lesson {
+  // Follow-ups are indented and joined to their parent by a rule.
+  margin: 0 0 0.9rem calc(var(--depth, 0) * 2.25rem);
+
+  &.follow-up {
+    position: relative;
+    padding-left: 1rem;
+    border-left: 2px solid var(--rule);
+  }
+}
+
+.continues {
+  margin: 0 0 0.35rem;
+  font-size: 0.82rem;
+  color: var(--muted);
+
+  .kicker { display: inline; margin-right: 0.35rem; }
+}
+
+.card {
+  display: grid;
+  grid-template-columns: 96px 1fr auto;
+  gap: 1.1rem;
+  align-items: center;
+  padding: 0.85rem 1.1rem 0.85rem 0.85rem;
+  border: 1px solid var(--rule);
+  border-radius: 8px;
+  background: var(--surface);
+  box-shadow: var(--card-shadow);
+  color: var(--text);
+  text-decoration: none;
+  transition: border-color 150ms ease, transform 150ms ease, box-shadow 150ms ease;
+
+  &:hover {
+    border-color: var(--accent);
+    transform: translateY(-1px);
+    box-shadow: var(--board-shadow);
+
+    .go { color: var(--accent); transform: translateX(3px); }
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .card, .card:hover, .card:hover .go { transition: none; transform: none; }
+}
+
+.thumb {
+  border-radius: 3px;
+  overflow: hidden;
+  box-shadow: 0 1px 3px rgb(0 0 0 / 0.15);
+}
+
+.body {
+  min-width: 0;
+
+  .number {
+    margin: 0;
+    font-size: 0.72rem;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--muted);
+  }
+  h3 {
+    margin: 0.1rem 0 0.25rem;
+    font-family: var(--serif);
+    font-size: 1.3rem;
+    font-weight: 600;
+  }
+  .summary {
+    margin: 0 0 0.5rem;
+    font-family: var(--serif);
+    font-size: 0.98rem;
+    line-height: 1.45;
+    color: var(--text);
+  }
+}
+
+.meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.35rem 1rem;
+  margin: 0;
+  font-size: 0.8rem;
+  color: var(--muted);
+}
+
+.go {
+  font-size: 1.4rem;
+  color: var(--muted);
+  transition: transform 150ms ease, color 150ms ease;
+}
+
+.empty {
+  max-width: 34rem;
+  padding: 1.25rem;
+  border: 1px dashed var(--border);
+  border-radius: 8px;
+  color: var(--muted);
+
+  p { margin: 0; }
+  .kicker { margin-bottom: 0.4rem; }
+}
+
+.muted { color: var(--muted); }
+.error { color: var(--bad); }

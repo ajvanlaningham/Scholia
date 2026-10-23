@@ -32,6 +32,11 @@ export interface CourseSummary {
 
 /** content/courses/<id>.json; its lessons are at content/lessons/<course>/<lesson>.json. */
 export interface CompiledCourse extends Omit<CourseSummary, 'lessons'> {
+  /** The opening's root position and the moves that reach it, e.g. "1. e4 e5 2. Nf3 …". */
+  rootFen: string;
+  rootLine: string;
+  /** The first lesson's sourced introduction, as the course's overview. */
+  overview?: Scholium;
   /** In course order: each lesson follows the lesson it continues from. */
   lessons: CourseLesson[];
 }
@@ -39,11 +44,18 @@ export interface CompiledCourse extends Omit<CourseSummary, 'lessons'> {
 export interface CourseLesson {
   id: string;
   title: string;
+  /** One line on what the lesson covers. */
+  summary?: string;
   status: string;
   review: ReviewProgress;
   sections: number;
+  lines: number;
+  traps: number;
+  /** Where the lesson starts, and the last moves before it, e.g. "7.Kg1 Qh4". */
+  startFen: string;
+  after: string;
   /** The lesson and section this one continues from, found by matching positions. */
-  continues?: { lesson: string; section: string };
+  continues?: { lesson: string; section: string; sectionTitle: string };
 }
 
 export interface LessonRef {
@@ -55,6 +67,7 @@ export interface CompiledLesson {
   id: string;
   course: string;
   title: string;
+  summary?: string;
   status: string;
   learner: 'white' | 'black';
   /** Moves before the lesson begins, e.g. "1. e4 e5 2. Nf3 …". */

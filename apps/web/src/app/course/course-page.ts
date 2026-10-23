@@ -1,44 +1,18 @@
 import { httpResource } from '@angular/common/http';
-import { ChangeDetectionStrategy, Component, input } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, input } from '@angular/core';
 import { RouterLink } from '@angular/router';
-import type { CompiledCourse } from '@scholia/lesson-format';
-import { courseUrl, stanceLabel } from '../content';
+import type { CompiledCourse, CourseLesson } from '@scholia/lesson-format';
+import { Board } from '../board/board';
+import { courseUrl } from '../content';
+import { ScholiumView } from '../lesson/scholium-view';
 import { StatusBadge } from '../status-badge';
 
+/** A course's title page and table of contents. */
 @Component({
   selector: 'app-course-page',
-  template: `
-    @if (course.error()) {
-      <p class="error">Couldn't load course "{{ courseId() }}". Run <code>pnpm lessons</code> to compile it.</p>
-    } @else if (course.value(); as c) {
-      <a routerLink="/">← Courses</a>
-      <h1>{{ c.title }} <app-status-badge [status]="c.status" [review]="c.review" /></h1>
-      <p class="meta stance">{{ label(c.stance, c.learner) }}</p>
-      @if (c.lessons.length === 0) {
-        <p class="meta stance">No lessons yet.</p>
-      }
-      <ol class="lessons">
-        @for (lesson of c.lessons; track lesson.id) {
-          <li [style.margin-left.rem]="depth(c, lesson.id) * 1.5">
-            @if (lesson.continues) { <span class="meta">↳</span> }
-            <a [routerLink]="['/course', c.id, 'lesson', lesson.id]">{{ lesson.title }}</a>
-            <app-status-badge [status]="lesson.status" [review]="lesson.review" />
-            <span class="meta">{{ lesson.sections }} sections</span>
-          </li>
-        }
-      </ol>
-    } @else {
-      <p class="meta">Loading…</p>
-    }
-  `,
-  styles: `
-    .lessons { list-style: none; padding-left: 0; }
-    li { margin: 0.5rem 0; }
-    .meta { margin-left: 0.75rem; color: var(--muted); font-size: 0.85rem; }
-    .stance { margin-left: 0; }
-    .error { color: var(--bad); }
-  `,
-  imports: [RouterLink, StatusBadge],
+  templateUrl: './course-page.html',
+  styleUrl: './course-page.scss',
+  imports: [RouterLink, Board, ScholiumView, StatusBadge],
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class CoursePage {
@@ -46,12 +20,43 @@ export class CoursePage {
   readonly courseId = input.required<string>();
 
   protected readonly course = httpResource<CompiledCourse>(() => courseUrl(this.courseId()));
-  protected readonly label = stanceLabel;
 
-  /** How many lessons deep this one continues from the course's first lessons. */
-  protected depth(course: CompiledCourse, id: string, seen = new Set<string>()): number {
-    const parent = course.lessons.find((l) => l.id === id)?.continues?.lesson;
-    if (!parent || seen.has(parent)) return 0;
-    return 1 + this.depth(course, parent, seen.add(id));
-  }
+  /** Each lesson with how many lessons deep it continues from the course's first lessons. */
+  protected readonly entries = computed(() => {
+    const course = this.course.value();
+    if (!course) return [];
+    const byId = new Map(course.lessons.map((l) => [l.id, l]));
+    const depth = (lesson: CourseLesson, seen = new Set<string>()): number => {
+      const parent = lesson.continues && byId.get(lesson.continues.lesson);
+      if (!parent || seen.has(parent.id)) return 0;
+      return 1 + depth(parent, seen.add(lesson.id));
+    };
+    return course.lessons.map((lesson, i) => ({
+      lesson,
+      number: i + 1,
+      depth: depth(lesson),
+      parentTitle: lesson.continues ? byId.get(lesson.continues.lesson)?.title : undefined,
+    }));
+  });
+
+  protected readonly side = computed(() => (this.course.value()?.learner === 'white' ? 'White' : 'Black'));
+
+  /** "1. e4 e5 2. Nf3" → "1.e4 e5 2.Nf3" */
+  protected readonly compact = (line: string) => line.replace(/(\d+)\. /g, '$1.');
+
+  protected readonly statusPhrase = (status: string) =>
+    ({
+      backlog: 'on the backlog',
+      researching: 'still being researched',
+      ready: 'ready to be written',
+      drafting: 'being drafted',
+      review: 'in review',
+      published: 'published',
+    })[status] ?? status;
+
+  /** "4 lines · 4 traps" */
+  protected readonly counts = (l: CourseLesson) =>
+    [l.lines && `${l.lines} ${l.lines === 1 ? 'line' : 'lines'}`, l.traps && `${l.traps} ${l.traps === 1 ? 'trap' : 'traps'}`]
+      .filter(Boolean)
+      .join(' · ');
 }

@@ -43,6 +43,8 @@ export class Board {
   readonly check = input(false);
   /** Circles (no `dest`) and arrows to draw: hints, refutations, options. */
   readonly shapes = input<BoardShape[]>([]);
+  /** A thumbnail: no coordinates, no interaction. */
+  readonly thumbnail = input(false);
   /** Emits the UCI of a move the user made (pawns reaching the last rank promote to a queen). */
   readonly moved = output<string>();
 
@@ -66,6 +68,8 @@ export class Board {
         showDests: true,
       },
       premovable: { enabled: false },
+      coordinates: !this.thumbnail(),
+      viewOnly: this.thumbnail(),
       drawable: {
         autoShapes: this.shapes().map((s) => ({ orig: s.orig as Key, ...(s.dest && { dest: s.dest as Key }), brush: s.brush })),
       },

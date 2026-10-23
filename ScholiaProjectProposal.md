@@ -3,7 +3,7 @@
 
 **Status:** Concept, revised after architecture review  
 **Version:** 0.2 — October 23, 2026  
-**Tagline:** *Understand the move.*  
+**Tagline:** *Beyond the Book*  
 **Audience:** One developer / chess learner plus a few family members; private, not a public release
 
 ---

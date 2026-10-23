@@ -32,7 +32,7 @@ import { formatScore, moveLoss, winChanceFor } from './evaluation.ts';
 import { REPO_ROOT } from './http.ts';
 import { totalGames } from './lichess.ts';
 import { loadSourceCollections, type MoveAnnotation, type SourceAnnotation } from './sources.ts';
-import { edgeId, type Tree } from './tree.ts';
+import { edgeId, formatLine, type Tree } from './tree.ts';
 
 const WEB_CONTENT_DIR = process.env.SCHOLIA_WEB_CONTENT ?? join(REPO_ROOT, 'apps/web/public/content');
 // Accepted moves may give up at most this many win-chance points...
@@ -72,6 +72,8 @@ interface Lesson {
   id: string;
   course: string;
   title: string;
+  /** One line on what the lesson covers (a description, not a chess claim). */
+  summary?: string;
   learner: 'white' | 'black';
   start: string;
   status: string;
@@ -119,6 +121,13 @@ function lastMoveLabel(line: string): string {
   if (/^\d+\./.test(last)) return last;
   const number = /^(\d+)\./.exec(tokens.at(-2) ?? '')?.[1];
   return number ? `${number}...${last}` : last;
+}
+
+/** The last move pair before a lesson starts: "7.Kg1 Qh4", or "5.Nxf7" after a White move. */
+function lastMoves(lesson: CompiledLesson): string {
+  const tokens = formatLine(lesson.approachFen, lesson.approach.map((m) => m.san)).split(' ');
+  const [before, last] = [tokens.at(-2), tokens.at(-1) ?? ''];
+  return /^\d/.test(last) || !before ? last : `${before} ${last}`;
 }
 
 const citationOf = (a: SourceAnnotation): Citation => ({
@@ -395,6 +404,7 @@ const citationOf = (a: SourceAnnotation): Citation => ({
       id: lesson.id,
       course: lesson.course,
       title: lesson.title,
+      ...(lesson.summary && { summary: lesson.summary }),
       status: lesson.status,
       learner: lesson.learner,
       start: lesson.start,
@@ -482,7 +492,21 @@ const citationOf = (a: SourceAnnotation): Citation => ({
   const visit = (l: CompiledLesson) => {
     if (ordered.some((o) => o.id === l.id)) return;
     const from = continues.get(l.id);
-    ordered.push({ id: l.id, title: l.title, status: l.status, review: l.review, sections: l.sections.length, ...(from && { continues: from }) });
+    const parent = from && compiledLessons.find((p) => p.id === from.lesson);
+    const sectionTitle = parent?.sections.find((s) => s.id === from?.section)?.title ?? '';
+    ordered.push({
+      id: l.id,
+      title: l.title,
+      ...(l.summary && { summary: l.summary }),
+      status: l.status,
+      review: l.review,
+      sections: l.sections.length,
+      lines: l.sections.filter((s) => s.kind === 'main').length,
+      traps: l.sections.filter((s) => s.kind === 'trap').length,
+      startFen: l.startFen,
+      after: lastMoves(l),
+      ...(from && { continues: { ...from, sectionTitle } }),
+    });
     const sectionOrder = (c: CompiledLesson) => l.sections.findIndex((s) => s.id === continues.get(c.id)?.section);
     const children = compiledLessons.filter((c) => continues.get(c.id)?.lesson === l.id);
     for (const child of children.sort((a, b) => sectionOrder(a) - sectionOrder(b))) visit(child);
@@ -490,6 +514,8 @@ const citationOf = (a: SourceAnnotation): Citation => ({
   for (const root of compiledLessons.filter((l) => !continues.has(l.id))) visit(root);
   for (const l of compiledLessons) visit(l); // lessons in a cycle
 
+  const firstLesson = compiledLessons.find((l) => l.id === ordered[0]?.id);
+  const overview = firstLesson?.intro;
   const reviewTotals = {
     reviewed: compiledLessons.reduce((n, l) => n + l.review.reviewed, 0),
     total: compiledLessons.reduce((n, l) => n + l.review.total, 0),
@@ -509,6 +535,9 @@ const citationOf = (a: SourceAnnotation): Citation => ({
     status: course.status ?? 'drafting',
     publishable,
     review: reviewTotals,
+    rootFen: tree.root.fen,
+    rootLine: tree.root.approach,
+    ...(overview && { overview }),
     lessons: ordered,
   };
   await writeFile(join(WEB_CONTENT_DIR, 'courses', `${course.id}.json`), `${JSON.stringify(compiledCourse, null, 2)}\n`);

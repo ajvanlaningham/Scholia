@@ -1,0 +1,67 @@
+@if (course.error()) {
+  <p class="error">Couldn't load course "{{ courseId() }}". Run <code>pnpm lessons</code> to compile it.</p>
+} @else if (course.value(); as c) {
+  <a routerLink="/" class="crumb">← All courses</a>
+
+  <!-- Title page: what you're studying, from which side, and where it starts. -->
+  <section class="title-page">
+    <div class="plate">
+      <app-board [fen]="c.rootFen" [orientation]="c.learner" [thumbnail]="true" />
+      <p class="caption">{{ compact(c.rootLine) }}</p>
+    </div>
+    <div class="titles">
+      <p class="kicker">{{ c.stance === 'wield' ? 'Playing it' : 'Facing it' }} · as {{ side() }}</p>
+      <h1>{{ c.title }}</h1>
+      <p class="byline">
+        {{ c.lessons.length }} {{ c.lessons.length === 1 ? 'lesson' : 'lessons' }}
+        <app-status-badge [status]="c.status" [review]="c.review" />
+      </p>
+      @if (c.overview) {
+        <div class="overview">
+          <p class="kicker">About this opening</p>
+          <app-scholium [scholium]="c.overview" />
+        </div>
+      }
+    </div>
+  </section>
+
+  <!-- Contents: lessons in order, follow-ups under the lesson they continue. -->
+  <section class="contents">
+    <h2>Lessons</h2>
+    @for (e of entries(); track e.lesson.id) {
+      <article class="lesson" [class.follow-up]="e.depth > 0" [style.--depth]="e.depth">
+        @if (e.lesson.continues) {
+          <p class="continues">
+            <span class="kicker">Continues</span>
+            from {{ e.parentTitle }} · {{ e.lesson.continues.sectionTitle }}
+          </p>
+        }
+        <a class="card" [routerLink]="['/course', c.id, 'lesson', e.lesson.id]">
+          <div class="thumb">
+            <app-board [fen]="e.lesson.startFen" [orientation]="c.learner" [thumbnail]="true" />
+          </div>
+          <div class="body">
+            <p class="number">Lesson {{ e.number }}</p>
+            <h3>{{ e.lesson.title }}</h3>
+            @if (e.lesson.summary) {
+              <p class="summary">{{ e.lesson.summary }}</p>
+            }
+            <p class="meta">
+              <span>Starts after {{ e.lesson.after }}</span>
+              <span>{{ counts(e.lesson) }}</span>
+              <app-status-badge [status]="e.lesson.status" [review]="e.lesson.review" />
+            </p>
+          </div>
+          <span class="go" aria-hidden="true">→</span>
+        </a>
+      </article>
+    } @empty {
+      <div class="empty">
+        <p class="kicker">No lessons yet</p>
+        <p>Lessons appear here once they've been written from the sources. This course is {{ statusPhrase(c.status) }}.</p>
+      </div>
+    }
+  </section>
+} @else {
+  <p class="muted">Loading…</p>
+}
