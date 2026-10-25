@@ -6,10 +6,15 @@
   "type": "module",
   "scripts": {
     "cli": "node --env-file-if-exists=../../.env src/cli.ts",
+    "test": "vitest run",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
     "@scholia/chess-core": "workspace:*",
-    "@scholia/lesson-format": "workspace:*"
+    "@scholia/lesson-format": "workspace:*",
+    "ajv": "^8.20.0"
+  },
+  "devDependencies": {
+    "vitest": "^5.0.5"
   }
 }

@@ -1,0 +1,65 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "common.schema.json",
+  "title": "Scholia: shared definitions",
+  "$defs": {
+    "id": {
+      "description": "Lowercase words joined by hyphens, e.g. \"knight-sacrifice\".",
+      "type": "string",
+      "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$"
+    },
+    "side": { "enum": ["white", "black"] },
+    "moves": {
+      "description": "Moves in SAN with move numbers, e.g. \"1. e4 e5 2. Nf3 Nc6\". Legality is checked by `pnpm lessons`.",
+      "type": "string"
+    },
+    "sources": {
+      "description": "Sources cited, by a key of your choosing. Each must match a gathered source collection by title (and author, if given).",
+      "type": "object",
+      "additionalProperties": {
+        "type": "object",
+        "required": ["title"],
+        "additionalProperties": false,
+        "properties": {
+          "title": { "type": "string", "minLength": 1 },
+          "author": { "type": "string", "minLength": 1 }
+        }
+      }
+    },
+    "cite": {
+      "description": "A source annotation: the source's key, and the position its text annotates.",
+      "type": "object",
+      "required": ["source", "at"],
+      "additionalProperties": false,
+      "properties": {
+        "source": { "type": "string", "description": "A key from the file's `sources`." },
+        "at": {
+          "type": "string",
+          "description": "Moves from the start position to the annotated position, e.g. \"5.Nxf7 Bxf2+\"; \"\" is the start itself. The start is the lesson's `start`, or the opening's root for a course overview."
+        }
+      }
+    },
+    "explanation": {
+      "description": "Commentary that may only condense what the cited passages say. Text with no citation is rejected; with nothing to cite, use `\"text\": null` and the move shows with the sources' judgments and the engine alone.",
+      "type": "object",
+      "required": ["text", "status", "cites"],
+      "additionalProperties": false,
+      "properties": {
+        "text": { "type": ["string", "null"] },
+        "form": {
+          "description": "How the text relates to its sources. Required when there is text.",
+          "enum": ["quote", "paraphrase", "model-summary", "personal-note"]
+        },
+        "status": {
+          "description": "\"reviewed\" once a person has checked the text against the cited passages on the review page.",
+          "enum": ["drafted", "reviewed"]
+        },
+        "cites": { "type": "array", "items": { "$ref": "#/$defs/cite" } },
+        "reviewedAgainst": {
+          "description": "Stamped by the checker: a fingerprint of the cited text at review. Delete it to re-review.",
+          "type": "string"
+        }
+      }
+    }
+  }
+}

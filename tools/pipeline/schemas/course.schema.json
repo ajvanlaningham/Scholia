@@ -1,0 +1,30 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "course.schema.json",
+  "title": "Scholia course",
+  "description": "content/courses/<id>/course.json: one opening taught from one side. Its lessons are the JSON files in lessons/ beside it.",
+  "type": "object",
+  "required": ["schemaVersion", "id", "title", "opening", "learner", "stance", "status"],
+  "additionalProperties": false,
+  "properties": {
+    "$schema": { "type": "string" },
+    "schemaVersion": { "const": 1 },
+    "id": { "$ref": "common.schema.json#/$defs/id", "description": "Must match the directory name, conventionally \"<opening>-<stance>\"." },
+    "title": { "type": "string", "minLength": 1, "description": "e.g. \"Playing the Traxler\" or \"Facing the Traxler\"." },
+    "opening": { "$ref": "common.schema.json#/$defs/id", "description": "The opening's id (content/openings/<id>)." },
+    "learner": { "$ref": "common.schema.json#/$defs/side", "description": "The side the learner plays; every lesson must match." },
+    "stance": {
+      "description": "\"wield\": the learner plays the opening's idea. \"face\": the learner meets it.",
+      "enum": ["wield", "face"]
+    },
+    "status": {
+      "description": "backlog → researching (tree and sources being built) → ready (enough sources to teach) → drafting → review → published (every lesson reviewed, no problems).",
+      "enum": ["backlog", "researching", "ready", "drafting", "review", "published"]
+    },
+    "sources": { "$ref": "common.schema.json#/$defs/sources" },
+    "overview": {
+      "$ref": "common.schema.json#/$defs/explanation",
+      "description": "\"About this opening\". Citations' `at` is relative to the opening's root."
+    }
+  }
+}

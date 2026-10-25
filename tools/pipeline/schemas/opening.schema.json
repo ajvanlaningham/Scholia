@@ -1,0 +1,23 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "opening.schema.json",
+  "title": "Scholia opening",
+  "description": "content/openings/<id>/opening.json: an opening to research. Its tree and sources are shared by every course on it.",
+  "type": "object",
+  "required": ["schemaVersion", "id", "title", "root", "side"],
+  "additionalProperties": false,
+  "properties": {
+    "$schema": { "type": "string" },
+    "schemaVersion": { "const": 1 },
+    "id": { "$ref": "common.schema.json#/$defs/id", "description": "Must match the directory name." },
+    "title": { "type": "string", "minLength": 1, "description": "e.g. \"Traxler Counterattack\"." },
+    "root": {
+      "$ref": "common.schema.json#/$defs/moves",
+      "description": "Moves from the initial position to the opening's defining position, e.g. \"1. e4 e5 2. Nf3 Nc6 3. Bc4 Nf6 4. Ng5 Bc5\"."
+    },
+    "side": {
+      "$ref": "common.schema.json#/$defs/side",
+      "description": "Whose idea the opening is: the side a \"wield\" course teaches."
+    }
+  }
+}

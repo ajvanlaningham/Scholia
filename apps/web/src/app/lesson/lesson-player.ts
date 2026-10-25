@@ -106,6 +106,71 @@ export class LessonPlayer {
   protected readonly orientation = computed(() => this.lesson.value()?.learner ?? 'white');
   protected readonly opponent = computed(() => (this.orientation() === 'white' ? 'Black' : 'White'));
 
+  /**
+   * The sections as a tree, depth first: each section under the one it branches
+   * from, in the lesson's order.
+   */
+  protected readonly contents = computed(() => {
+    const sections = this.lesson.value()?.sections ?? [];
+    const ids = new Set(sections.map((s) => s.id));
+    const out: { section: CompiledSection; index: number; depth: number }[] = [];
+    const visit = (parent: string | undefined, depth: number) => {
+      for (const [index, section] of sections.entries()) {
+        const from = section.branch && ids.has(section.branch.from) ? section.branch.from : undefined;
+        if (from !== parent) continue;
+        out.push({ section, index, depth });
+        visit(section.id, depth + 1);
+      }
+    };
+    visit(undefined, 0);
+    return out;
+  });
+  /** The current section's place in the tree's reading order, from 1. */
+  protected readonly position = computed(() => this.contents().findIndex((c) => c.index === this.sectionIndex()) + 1);
+  /** Sections that start where the lesson does, offered as the first choice. */
+  protected readonly roots = computed(() => this.contents().filter((c) => c.depth === 0));
+
+  /** Whether a section, or any section branching from it, is still to do. */
+  private unfinished(id: string): boolean {
+    const contents = this.contents();
+    const at = contents.findIndex((c) => c.section.id === id);
+    if (at < 0) return false;
+    const depth = contents[at]!.depth;
+    for (let i = at; i < contents.length && (i === at || contents[i]!.depth > depth); i++) {
+      if (!this.completed().has(contents[i]!.section.id)) return true;
+    }
+    return false;
+  }
+
+  /** At a finished section's end: each option, with the sections that carry on from it. */
+  protected readonly branches = computed(() => {
+    const sections = this.lesson.value()?.sections ?? [];
+    return (this.section()?.next.options ?? []).map((option) => ({
+      option,
+      sections: option.sections.map((ref) => ({
+        ...ref,
+        index: sections.findIndex((s) => s.id === ref.id),
+        done: !this.unfinished(ref.id),
+      })),
+    }));
+  });
+
+  /**
+   * Where Enter goes when a section is done: the most popular branch from here
+   * with something left to do, otherwise the next unfinished section in the tree.
+   */
+  protected readonly nextChoice = computed(() => {
+    const branch = this.branches()
+      .flatMap((b) => b.sections)
+      .find((s) => !s.done);
+    if (branch) return { index: branch.index, title: branch.title, branch: true };
+    const contents = this.contents();
+    const at = contents.findIndex((c) => c.index === this.sectionIndex());
+    const rest = [...contents.slice(at + 1), ...contents.slice(0, at + 1)];
+    const next = rest.find((c) => !this.completed().has(c.section.id));
+    return next && { index: next.index, title: next.section.title, branch: false };
+  });
+
   private readonly approach = computed(() => this.lesson.value()?.approach ?? []);
   /** History index of the lesson's start: the end of its opening moves. */
   private readonly base = computed(() => this.approach().length);
@@ -295,16 +360,21 @@ export class LessonPlayer {
     const section = this.lesson.value()?.sections[index];
     if (!section) return;
     this.stopTimers();
+    // Setup moves already on the board (e.g. after choosing a branch where the
+    // last section ended) stay there instead of being played out again.
+    const played = this.phase() === 'intro' ? [] : (this.section()?.plies.slice(0, this.cursor()) ?? []);
+    let kept = 0;
+    while (kept < section.firstStep && played[kept]?.uci === section.plies[kept]?.uci) kept++;
     this.sectionIndex.set(index);
-    this.cursor.set(0);
-    this.liveFen.set(this.fenAt(0));
-    this.liveLastMove.set(undefined);
+    this.cursor.set(kept);
+    this.liveFen.set(this.fenAt(kept));
+    this.liveLastMove.set(section.plies[kept - 1]?.uci);
     this.tally.set(emptyTally());
     this.shown.set(undefined);
     this.feedback.set(undefined);
     this.viewing.set(undefined);
     // Moves before the first step are setup: play them out, then begin.
-    this.settingUp.set(section.firstStep > 0);
+    this.settingUp.set(kept < section.firstStep);
     this.phase.set('playing');
     const setup = () => {
       const ply = section.plies[this.cursor()];
@@ -534,7 +604,7 @@ export class LessonPlayer {
     const f = this.feedback();
     switch (this.phase()) {
       case 'intro':
-        return this.start(0);
+        return this.start(this.roots()[0]?.index ?? 0);
       case 'reading':
         return this.advance();
       case 'feedback':
@@ -542,8 +612,8 @@ export class LessonPlayer {
         if (f?.kind === 'alsoGood') return this.continueWithLine();
         return this.advance();
       case 'done': {
-        const next = this.sectionIndex() + 1;
-        if (next < (this.lesson.value()?.sections.length ?? 0)) this.start(next);
+        const next = this.nextChoice();
+        if (next) this.start(next.index);
         return;
       }
       default:

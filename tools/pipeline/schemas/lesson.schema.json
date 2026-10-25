@@ -1,0 +1,85 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "lesson.schema.json",
+  "title": "Scholia lesson",
+  "description": "content/courses/<course>/lessons/<id>.json. A lesson starts at a position and teaches lines from it as sections. Lessons and sections link to each other by position: a section continues the one whose end its line passes through, and a lesson continues the section that ends where it starts (or one move before). Lines may only part at a section's end, where the learner chooses.",
+  "type": "object",
+  "required": ["schemaVersion", "id", "course", "title", "learner", "start", "status", "sources", "sections"],
+  "additionalProperties": false,
+  "properties": {
+    "$schema": { "type": "string" },
+    "schemaVersion": { "const": 1 },
+    "id": { "$ref": "common.schema.json#/$defs/id", "description": "Must match the file name." },
+    "course": { "$ref": "common.schema.json#/$defs/id", "description": "The course's id; must match the directory." },
+    "title": { "type": "string", "minLength": 1 },
+    "summary": { "type": "string", "description": "One line on what the lesson covers: a description, not a chess claim." },
+    "learner": { "$ref": "common.schema.json#/$defs/side", "description": "Must match the course's learner." },
+    "start": {
+      "$ref": "common.schema.json#/$defs/moves",
+      "description": "Moves from the initial position to where the lesson begins."
+    },
+    "status": {
+      "description": "\"reviewed\" only once every explanation in the lesson is.",
+      "enum": ["drafted", "reviewed"]
+    },
+    "sources": { "$ref": "common.schema.json#/$defs/sources" },
+    "intro": { "$ref": "common.schema.json#/$defs/explanation", "description": "Shown before the first section." },
+    "sections": {
+      "description": "The lines the lesson teaches. A section that shares moves with another branches from it; put sections in reading order.",
+      "type": "array",
+      "items": { "$ref": "#/$defs/section" }
+    }
+  },
+  "$defs": {
+    "section": {
+      "type": "object",
+      "required": ["id", "title", "kind", "line", "steps"],
+      "additionalProperties": false,
+      "properties": {
+        "id": { "$ref": "common.schema.json#/$defs/id", "description": "Unique within the lesson." },
+        "title": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Leads with the move that makes this line different, e.g. \"7.Kg1: running to the corner\"; learners choose sections by it."
+        },
+        "kind": {
+          "description": "\"main\": a line to learn. \"trap\": the opponent's tempting mistake and how to punish it (or, facing an opening, the learner's pitfall).",
+          "enum": ["main", "trap"]
+        },
+        "line": {
+          "$ref": "common.schema.json#/$defs/moves",
+          "description": "The whole line from the lesson's start, including moves shared with the section it branches from (those are played as setup)."
+        },
+        "steps": {
+          "description": "Moves of the line to stop at, in order. Moves before the first step are played as setup.",
+          "type": "array",
+          "items": { "$ref": "#/$defs/step" }
+        }
+      }
+    },
+    "step": {
+      "type": "object",
+      "required": ["move"],
+      "additionalProperties": false,
+      "properties": {
+        "move": {
+          "type": "string",
+          "pattern": "^[0-9]+\\.(\\.\\.)?\\S+$",
+          "description": "The move's label: \"8.g3\" for White, \"7...Qh4\" for Black."
+        },
+        "prompt": { "type": "string", "description": "The learner's moves only: what they are asked to find." },
+        "accept": {
+          "description": "The learner's moves only: SAN of every move that counts as correct, including the line's own. The engine must rate each as sound.",
+          "type": "array",
+          "minItems": 1,
+          "items": { "type": "string" }
+        },
+        "disputed": {
+          "description": "The line follows a source the engine disagrees with; the player shows both views.",
+          "type": "boolean"
+        },
+        "explanation": { "$ref": "common.schema.json#/$defs/explanation" }
+      }
+    }
+  }
+}

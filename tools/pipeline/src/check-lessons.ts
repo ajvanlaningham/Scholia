@@ -9,7 +9,7 @@
 //     cites, so a human can confirm the summary adds nothing;
 //   - the compiled lesson (@scholia/lesson-format) for the web app.
 import { createHash } from 'node:crypto';
-import { mkdir, readFile, writeFile } from 'node:fs/promises';
+import { mkdir, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { type PlayedMove, playPgnMainline, playSan, playSanLine, playUci, playUciLine } from '@scholia/chess-core';
 import type {
@@ -26,8 +26,9 @@ import type {
   NextStep,
   Ply,
   Scholium,
+  SectionRef,
 } from '@scholia/lesson-format';
-import { type CourseConfig, courseDir, lessonFiles, lessonsDir, listCourses, loadTree } from './config.ts';
+import { type Cite, type CourseConfig, courseDir, type Explanation, type Lesson, lessonsDir, listCourses, loadLessons, loadTree } from './config.ts';
 import { formatScore, moveLoss, winChanceFor } from './evaluation.ts';
 import { REPO_ROOT } from './http.ts';
 import { totalGames } from './lichess.ts';
@@ -43,44 +44,6 @@ const REPLY_PLIES = 6;
 // in a decided position, any move that keeps the win is a correct answer.
 const STILL_WINNING = 80;
 const FORMS = ['quote', 'paraphrase', 'model-summary', 'personal-note'];
-
-interface Cite {
-  source: string;
-  /** Moves from the lesson's start position, e.g. "5.Nxf7 Bxf2+"; "" is the start itself. */
-  at: string;
-}
-
-interface Explanation {
-  text: string | null;
-  form?: string;
-  status: 'drafted' | 'reviewed';
-  cites: Cite[];
-  /** Fingerprint of the cited text when the explanation was reviewed; stamped by the checker. */
-  reviewedAgainst?: string;
-}
-
-interface Step {
-  move: string;
-  /** The line follows a source over the engine's objection; reported, not rejected. */
-  disputed?: boolean;
-  prompt?: string;
-  accept?: string[];
-  explanation?: Explanation;
-}
-
-interface Lesson {
-  id: string;
-  course: string;
-  title: string;
-  /** One line on what the lesson covers (a description, not a chess claim). */
-  summary?: string;
-  learner: 'white' | 'black';
-  start: string;
-  status: string;
-  sources: Record<string, { title: string; author?: string }>;
-  intro?: Explanation;
-  sections: { id: string; title: string; kind: 'main' | 'trap'; line: string; steps: Step[] }[];
-}
 
 export async function compileCourse(
   course: CourseConfig,
@@ -186,10 +149,9 @@ const citationOf = (a: SourceAnnotation): Citation => ({
   }
 
   /** Lessons by the position key they start from, so sections can link to what follows. */
-  const files = await lessonFiles(course.id);
-  const lessons = await Promise.all(
-    files.map(async (f) => JSON.parse(await readFile(join(LESSONS_DIR, f), 'utf8')) as Lesson),
-  );
+  const loaded = await loadLessons(course.id);
+  const lessons = loaded.flatMap((l) => (l.lesson ? [l.lesson] : []));
+  const files = loaded.flatMap((l) => (l.lesson ? [l.file] : []));
   const lessonsStartingAt = Map.groupBy(
     lessons.map((l) => ({ key: playPgnMainline(l.start).moves.at(-1)?.key ?? '', ref: { id: l.id, title: l.title } })),
     (l) => l.key,
@@ -199,12 +161,16 @@ const citationOf = (a: SourceAnnotation): Citation => ({
 
   const clubPercent = (note: EngineNote) => Number.parseInt(note.club ?? '0', 10);
 
-  /** The position a section ends in, the opponent's (or learner's) options there, and linked lessons. */
-  function nextStep(lessonId: string, fen: string, key: string): NextStep {
+  /**
+   * The position a section ends in, the opponent's (or learner's) options there,
+   * and the sections and lessons that carry on with each.
+   */
+  function nextStep(lessonId: string, fen: string, key: string, branches: { uci: string; section: SectionRef }[]): NextStep {
     const from = nodes.get(key);
     const ucis = new Set([
       ...tree.edges.filter((e) => e.from === key).map((e) => e.uci),
       ...(from?.evaluation?.lines.map((l) => l.uci[0]!) ?? []),
+      ...branches.map((b) => b.uci),
     ]);
     const options: NextOption[] = [...ucis].map((uci) => {
       const { loss: _loss, keepsWin: _keepsWin, ...engine } = engineNote(fen, key, uci);
@@ -214,6 +180,7 @@ const citationOf = (a: SourceAnnotation): Citation => ({
         uci,
         engine,
         citations: (byMove.get(edgeId(key, uci)) ?? []).map(citationOf),
+        sections: branches.filter((b) => b.uci === uci).map((b) => b.section),
         lessons: startingAt(move.key, lessonId),
       };
     });
@@ -276,7 +243,9 @@ const citationOf = (a: SourceAnnotation): Citation => ({
       return { text: explanation.text, ...(explanation.form && { form: explanation.form }), status: explanation.status, citations };
     }
 
-    const sections: CompiledSection[] = [];
+    const sections: Omit<CompiledSection, 'next'>[] = [];
+    /** Position keys along each compiled section's line, from the lesson's start. */
+    const lineKeys: string[][] = [];
     for (const section of lesson.sections) {
       let moves: PlayedMove[];
       try {
@@ -392,9 +361,42 @@ const citationOf = (a: SourceAnnotation): Citation => ({
         plies,
         firstStep: Math.max(firstStep, 0),
         startScore: formatScore(nodes.get(rootKey)?.evaluation?.lines[0]),
-        next: nextStep(lesson.id, fensBefore.at(-1)!, keysBefore.at(-1)!),
       });
+      lineKeys.push(keysBefore);
     }
+
+    // Sections form a tree. Each one branches from the deepest other section whose
+    // end its line passes through, and is offered as a choice where that one ends.
+    for (const [i, s] of sections.entries()) {
+      let branch: { from: string; ply: number } | undefined;
+      for (const [j, parent] of sections.entries()) {
+        const ply = lineKeys[i]!.indexOf(lineKeys[j]!.at(-1)!);
+        if (j !== i && ply >= 0 && ply < s.plies.length && ply > (branch?.ply ?? -1)) branch = { from: parent.id, ply };
+      }
+      if (branch) s.branch = branch;
+    }
+    // A choice is only offered at a section's end, so lines may only part there.
+    const endKeys = new Set(lineKeys.map((keys) => keys.at(-1)!));
+    const reported = new Set<string>();
+    for (const [i, a] of sections.entries()) {
+      for (const b of sections.slice(i + 1)) {
+        let d = 0;
+        while (d < a.plies.length && d < b.plies.length && a.plies[d]!.uci === b.plies[d]!.uci) d++;
+        const key = lineKeys[i]![d]!;
+        if (d === 0 || d === a.plies.length || d === b.plies.length || endKeys.has(key) || reported.has(key)) continue;
+        reported.add(key);
+        problems.push(
+          `${a.id} and ${b.id} part mid-section (${a.plies[d]!.label} / ${b.plies[d]!.label}): end a section at ${a.plies[d - 1]!.label} so the learner can choose`,
+        );
+      }
+    }
+    const compiledSections: CompiledSection[] = sections.map((s, i) => {
+      const branches = sections.flatMap((c) =>
+        c.branch?.from === s.id ? [{ uci: c.plies[c.branch.ply]!.uci, section: { id: c.id, title: c.title } }] : [],
+      );
+      const end = s.plies.at(-1);
+      return { ...s, next: nextStep(lesson.id, end?.fenAfter ?? rootFen, lineKeys[i]!.at(-1)!, branches) };
+    });
 
     const intro = scholium(lesson.intro, 'intro');
     if (lesson.status === 'reviewed' && progress.reviewed < progress.total) {
@@ -413,7 +415,7 @@ const citationOf = (a: SourceAnnotation): Citation => ({
       approach: startMoves.map((m) => ({ san: m.san, uci: m.uci, fen: m.fen })),
       ...(intro && { intro }),
       review: progress,
-      sections,
+      sections: compiledSections,
     };
   }
 
@@ -456,10 +458,18 @@ const citationOf = (a: SourceAnnotation): Citation => ({
   /** Every problem, prefixed with its lesson, for reports. */
   const issues: string[] = [];
 
+  for (const { file, problems } of loaded.filter((l) => !l.lesson)) {
+    console.log(`Lesson file ${file}: doesn't match the lesson schema, skipped`);
+    for (const p of problems) console.log(`  ✗ ${p}`);
+    issues.push(...problems.map((p) => `${file}: ${p}`));
+    totalProblems += problems.length;
+  }
+
   for (const [i, lesson] of lessons.entries()) {
     const problems: string[] = [];
     const notes: string[] = [];
     if (lesson.course !== course.id) problems.push(`${lesson.id}: "course" is "${lesson.course}", expected "${course.id}"`);
+    if (lesson.sections.length === 0) problems.push(`${lesson.id}: no sections yet`);
     if (lesson.learner !== course.learner) problems.push(`${lesson.id}: learner is ${lesson.learner}, but the course teaches ${course.learner}`);
     const changed = { stamped: false };
     const compiled = compile(lesson, problems, notes, changed);
@@ -593,7 +603,13 @@ export async function compileAllCourses(): Promise<{ course: CompiledCourse; pro
   const results = [];
   for (const course of await listCourses()) {
     console.log(`\n${course.title} (${course.id})`);
-    results.push(await compileCourse(course, await loadTree(course.opening)));
+    // A course scaffolded before its opening has been researched has nothing to check yet.
+    const tree = await loadTree(course.opening).catch(() => undefined);
+    if (!tree) {
+      console.log(`  skipped: no tree for "${course.opening}" yet (pnpm opening ${course.opening})`);
+      continue;
+    }
+    results.push(await compileCourse(course, tree));
   }
   await writeCourseIndex(results.map((r) => r.course));
   return results;

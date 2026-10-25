@@ -96,6 +96,8 @@ export interface CompiledSection {
   firstStep: number;
   /** Evaluation of the section's starting position, from White's view ("+0.97", "#-3", "—"). */
   startScore: string;
+  /** The section this one branches from: its line passes through that section's end, then plays `plies[ply]`. */
+  branch?: { from: string; ply: number };
   /** Where the section ends and what can happen next. */
   next: NextStep;
 }
@@ -114,8 +116,15 @@ export interface NextOption {
   uci: string;
   engine: EngineNote;
   citations: Citation[];
+  /** Sections of this lesson that branch from here with this move. */
+  sections: SectionRef[];
   /** Lessons that start right after this move. */
   lessons: LessonRef[];
+}
+
+export interface SectionRef {
+  id: string;
+  title: string;
 }
 
 export interface Ply {

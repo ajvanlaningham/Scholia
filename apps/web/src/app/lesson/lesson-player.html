@@ -64,20 +64,20 @@
 
       @if (phase() !== 'intro') {
         <div class="progress" role="group" aria-label="Sections">
-          @for (s of l.sections; track s.id) {
+          @for (c of contents(); track c.section.id) {
             <button
               class="segment"
-              [class.done]="completed().has(s.id)"
-              [class.active]="$index === sectionIndex()"
-              [class.trap]="s.kind === 'trap'"
-              [title]="s.title"
-              [attr.aria-label]="s.title"
-              (click)="start($index)"
+              [class.done]="completed().has(c.section.id)"
+              [class.active]="c.index === sectionIndex()"
+              [class.trap]="c.section.kind === 'trap'"
+              [title]="c.section.title"
+              [attr.aria-label]="c.section.title"
+              (click)="start(c.index)"
             ></button>
           }
         </div>
         <p class="section-title">
-          <span class="kicker">{{ section()?.kind === 'trap' ? 'Trap' : 'Line' }} {{ sectionIndex() + 1 }} of {{ l.sections.length }}</span>
+          <span class="kicker">{{ section()?.kind === 'trap' ? 'Trap' : 'Line' }} {{ position() }} of {{ l.sections.length }}</span>
           {{ section()?.title }}
         </p>
       }
@@ -114,10 +114,29 @@
               <p class="muted">
                 {{ l.sections.length }} lines and traps. You play {{ l.learner }}; {{ opponent() }}'s moves are played for you.
               </p>
-              <div class="actions">
-                <button class="primary" (click)="start(0)">Begin <kbd>Enter</kbd></button>
-                <button class="link" (click)="playApproach()">Replay the opening</button>
-              </div>
+              @if (roots().length > 1) {
+                <p class="subhead">{{ l.startFen.split(' ')[1] === 'w' ? 'White' : 'Black' }} to move. Where first?</p>
+                <ul class="options">
+                  @for (r of roots(); track r.section.id) {
+                    <li>
+                      <button class="branch" [class.primary]="$first" (click)="start(r.index)">
+                        {{ r.section.title }}
+                        @if ($first) {
+                          <kbd>Enter</kbd>
+                        }
+                      </button>
+                    </li>
+                  }
+                </ul>
+                <div class="actions">
+                  <button class="link" (click)="playApproach()">Replay the opening</button>
+                </div>
+              } @else {
+                <div class="actions">
+                  <button class="primary" (click)="start(roots()[0]?.index ?? 0)">Begin <kbd>Enter</kbd></button>
+                  <button class="link" (click)="playApproach()">Replay the opening</button>
+                </div>
+              }
             </div>
           }
 
@@ -250,21 +269,38 @@
                   }
                 </p>
               }
+              @let choice = nextChoice();
               @if (section()?.next; as n) {
                 @for (next of n.lessons; track next.id) {
                   <a class="button primary" [routerLink]="['/course', l.course, 'lesson', next.id]">Continue: {{ next.title }} →</a>
                 }
                 @if (n.options.length) {
-                  <p class="subhead">{{ n.fen.split(' ')[1] === 'w' ? 'White' : 'Black' }} to move. The options from here:</p>
+                  <p class="subhead">
+                    {{ n.fen.split(' ')[1] === 'w' ? 'White' : 'Black' }} to move.
+                    {{ choice?.branch ? 'Where next?' : 'The options from here:' }}
+                  </p>
                   <ul class="options">
-                    @for (o of n.options; track o.uci) {
+                    @for (b of branches(); track b.option.uci) {
+                      @let o = b.option;
                       <li>
                         <span class="san" [class.good]="o.engine.good">{{ o.san }}</span>
                         <span class="engine-inline">{{ o.engine.scoreAfter }}@if (o.engine.club) { · {{ o.engine.club }} }</span>
+                        @for (c of b.sections; track c.id) {
+                          <button class="branch" [class.primary]="choice?.branch && choice?.index === c.index" (click)="start(c.index)">
+                            {{ c.title }}
+                            @if (c.done) {
+                              <span class="tick">✓</span>
+                            }
+                            @if (choice?.branch && choice?.index === c.index) {
+                              <kbd>Enter</kbd>
+                            }
+                          </button>
+                        }
                         @for (next of o.lessons; track next.id) {
-                          <a [routerLink]="['/course', l.course, 'lesson', next.id]">Lesson →</a>
-                        } @empty {
-                          <span class="muted">no lesson yet</span>
+                          <a class="branch" [routerLink]="['/course', l.course, 'lesson', next.id]">Lesson: {{ next.title }} →</a>
+                        }
+                        @if (!b.sections.length && !o.lessons.length) {
+                          <span class="muted">not covered yet</span>
                         }
                       </li>
                     }
@@ -272,10 +308,10 @@
                 }
               }
               <div class="actions">
-                @if (sectionIndex() + 1 < l.sections.length) {
-                  <button class="primary" (click)="start(sectionIndex() + 1)">
-                    Next: {{ l.sections[sectionIndex() + 1]!.title }} <kbd>Enter</kbd>
-                  </button>
+                @if (choice && !choice.branch) {
+                  <button class="primary" (click)="start(choice.index)">Next: {{ choice.title }} <kbd>Enter</kbd></button>
+                } @else if (!choice) {
+                  <p class="muted">You've finished every line in this lesson.</p>
                 }
                 <button (click)="restart()">Replay</button>
               </div>
@@ -287,9 +323,10 @@
       <details class="contents" [open]="phase() === 'intro'">
         <summary>Contents</summary>
         <ol>
-          @for (s of l.sections; track s.id) {
-            <li [class.active]="phase() !== 'intro' && $index === sectionIndex()">
-              <button class="link" (click)="start($index)">
+          @for (c of contents(); track c.section.id) {
+            @let s = c.section;
+            <li [class.active]="phase() !== 'intro' && c.index === sectionIndex()" [class.branch]="c.depth > 0" [style.--depth]="c.depth">
+              <button class="link" (click)="start(c.index)">
                 <span class="kind" [class.trap]="s.kind === 'trap'">{{ s.kind }}</span>
                 <span>{{ s.title }}</span>
                 @if (completed().has(s.id)) {

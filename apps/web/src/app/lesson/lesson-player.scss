@@ -225,11 +225,26 @@ header {
 
   li {
     display: flex;
+    flex-wrap: wrap;
     align-items: baseline;
-    gap: 0.6rem;
-    padding: 0.3rem 0;
+    gap: 0.35rem 0.6rem;
+    padding: 0.4rem 0;
     border-bottom: 1px solid var(--rule);
   }
+  // A branch to follow from this move: one row each, under the move.
+  .branch {
+    flex-basis: 100%;
+    display: flex;
+    align-items: baseline;
+    gap: 0.5rem;
+    text-align: left;
+    font-family: var(--serif);
+    font-size: 0.92rem;
+    kbd { margin-left: auto; }
+    .tick { color: var(--good); }
+    &.primary .tick { color: inherit; }
+  }
+  a.branch { font-size: 0.92rem; }
   .san { min-width: 3.5rem; font-family: var(--serif); font-weight: 600; color: var(--warn); }
   .san.good { color: var(--good); }
   .engine-inline { flex: 1; font-family: var(--mono); font-size: 0.75rem; color: var(--muted); }
@@ -250,6 +265,9 @@ header {
     color: var(--muted);
   }
   ol { list-style: none; padding: 0; margin: 0.5rem 0 0; }
+  // Branches sit under the section they continue.
+  li { padding-left: calc(var(--depth, 0) * 1rem); }
+  li.branch .link { border-left: 1px solid var(--rule); padding-left: 0.5rem; }
   li.active .link { font-weight: 700; color: var(--text); }
   .link { display: flex; gap: 0.6rem; width: 100%; color: var(--muted); }
   .kind {

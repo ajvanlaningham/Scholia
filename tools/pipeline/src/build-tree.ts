@@ -4,10 +4,10 @@
 // Stockfish). Writes content/openings/<id>/tree.json.
 //
 // Env: LICHESS_TOKEN (enables explorer expansion), STOCKFISH_PATH.
-import { mkdir, readFile, writeFile } from 'node:fs/promises';
+import { mkdir, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { type PlayedMove, playPgnMainline, playSanLine, playUci, positionKey, sideToMove } from '@scholia/chess-core';
-import { lessonFiles, lessonsDir, listCourses, type OpeningConfig, openingDir } from './config.ts';
+import { listCourses, loadLessons, type OpeningConfig, openingDir } from './config.ts';
 import { cloudEval, type Counts, explorer, type ExplorerDb, totalGames } from './lichess.ts';
 import { loadOpenings } from './openings.ts';
 import { loadSourceCollections } from './sources.ts';
@@ -40,11 +40,9 @@ const counts = ({ white, draws, black }: Counts): Counts => ({ white, draws, bla
 async function lessonLines(openingId: string): Promise<PlayedMove[][]> {
   const lines: PlayedMove[][] = [];
   for (const course of (await listCourses()).filter((c) => c.opening === openingId)) {
-    for (const file of await lessonFiles(course.id)) {
-      const lesson = JSON.parse(await readFile(join(lessonsDir(course.id), file), 'utf8')) as {
-        start: string;
-        sections: { line: string }[];
-      };
+    // Lessons that don't match the schema are reported by `pnpm lessons`.
+    for (const { lesson } of await loadLessons(course.id)) {
+      if (!lesson) continue;
       for (const section of lesson.sections) {
         try {
           lines.push(playPgnMainline(`${lesson.start} ${section.line}`).moves);
