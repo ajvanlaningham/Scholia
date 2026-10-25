@@ -65,6 +65,16 @@ export async function compileCourse(
       .map((t) => t.replace(/^\d+\.+/, ''))
       .filter((t) => t.length > 0);
 
+  /**
+   * The position a citation's `at` names: moves from `fen` (the lesson's start or
+   * the opening's root), or, when it begins at move 1, moves from the initial
+   * position, for a source on a position before the start.
+   */
+  const citedKey = (at: string, fen: string, key: string): string =>
+    /^1\./.test(at.trim())
+      ? (playPgnMainline(at).moves.at(-1)?.key ?? key)
+      : (playSanLine(fen, sansOf(at)).at(-1)?.key ?? key);
+
   /** "7...Qh4" for Black's 7th move, "8.g3" for White's 8th. */
   function label(fenBefore: string, san: string): string {
     const [, turn, , , , fullmove] = fenBefore.split(' ');
@@ -203,7 +213,7 @@ const citationOf = (a: SourceAnnotation): Citation => ({
       }
       let key = rootKey;
       try {
-        key = playSanLine(rootFen, sansOf(cite.at)).at(-1)?.key ?? rootKey;
+        key = citedKey(cite.at, rootFen, rootKey);
       } catch (error) {
         problems.push(`${where}: citation "${cite.at}" is not a legal line (${(error as Error).message})`);
         return undefined;
@@ -300,7 +310,7 @@ const citationOf = (a: SourceAnnotation): Citation => ({
           }
         });
         if (accepted.length === 0) problems.push(`${where}: learner step accepts no moves`);
-        if (ply.engine.verdict === 'not evaluated') problems.push(`${where}: the engine hasn't evaluated ${ply.san} (run spike:traxler)`);
+        if (ply.engine.verdict === 'not evaluated') problems.push(`${where}: the engine hasn't evaluated ${ply.san} (run: pnpm opening ${course.opening})`);
         if (!accepted.some((m) => m.uci === ply.uci)) problems.push(`${where}: the line's move isn't accepted`);
         for (const m of accepted) {
           const note = engineNote(fen, fromKey, m.uci);
@@ -542,7 +552,7 @@ const citationOf = (a: SourceAnnotation): Citation => ({
       }
       let key = tree.root.key;
       try {
-        key = playSanLine(tree.root.fen, sansOf(cite.at)).at(-1)?.key ?? tree.root.key;
+        key = citedKey(cite.at, tree.root.fen, tree.root.key);
       } catch (error) {
         problem(`citation "${cite.at}" is not a legal line (${(error as Error).message})`);
         return [];

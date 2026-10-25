@@ -58,8 +58,19 @@ export async function fetchStudies(): Promise<void> {
   ];
   if (ids.length === 0) console.log(`No studies listed; add URLs to ${STUDY_LIST}`);
 
+  // One study that can't be fetched doesn't stop the others; its earlier export, if any, is kept.
+  const failed: string[] = [];
   for (const id of ids) {
-    const pgn = await exportStudy(id);
+    let pgn: string;
+    try {
+      pgn = await exportStudy(id);
+    } catch (error) {
+      const status = /failed with (\d+)/.exec((error as Error).message)?.[1];
+      const why = status === '403' ? 'export refused (403): the study is private, or its owner limits sharing' : (error as Error).message.slice(0, 200);
+      console.log(`Study ${id}: ${why}`);
+      failed.push(`${id} (${why})`);
+      continue;
+    }
     const study = studySummary(id, pgn);
     study.ownerTitle = await userTitle(study.owner, token);
     const collection = studyAnnotations(study, pgn, scope, (key) => rootByKey.get(key));
@@ -73,4 +84,5 @@ export async function fetchStudies(): Promise<void> {
     const match = /^lichess-study-(\w+)\.json$/.exec(file);
     if (match && !ids.includes(match[1]!)) await rm(join(SOURCES_DIR, file));
   }
+  if (failed.length) throw new Error(`${failed.length} listed ${failed.length === 1 ? 'study' : 'studies'} couldn't be fetched: ${failed.join('; ')}`);
 }

@@ -264,7 +264,10 @@ export class LessonPlayer {
       return [{ orig: reply.slice(0, 2), dest: reply.slice(2, 4), brush: 'red' }];
     }
     if (this.phase() === 'done') {
-      return (this.section()?.next.options ?? []).map((o) => ({
+      // Arrows for the options that lead somewhere; with none, the three most popular.
+      const options = this.section()?.next.options ?? [];
+      const covered = options.filter((o) => o.sections.length > 0 || o.lessons.length > 0);
+      return (covered.length ? covered : options.slice(0, 3)).map((o) => ({
         orig: o.uci.slice(0, 2),
         dest: o.uci.slice(2, 4),
         brush: o.engine.good ? 'green' : 'yellow',

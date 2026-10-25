@@ -35,7 +35,7 @@
         "source": { "type": "string", "description": "A key from the file's `sources`." },
         "at": {
           "type": "string",
-          "description": "Moves from the start position to the annotated position, e.g. \"5.Nxf7 Bxf2+\"; \"\" is the start itself. The start is the lesson's `start`, or the opening's root for a course overview."
+          "description": "Moves from the start position to the annotated position, e.g. \"5.Nxf7 Bxf2+\"; \"\" is the start itself. The start is the lesson's `start`, or the opening's root for a course overview. A line beginning at move 1 (\"1.e4 e5 2.d4 …\") is read from the initial position instead, to cite a source on a position before the start."
         }
       }
     },
