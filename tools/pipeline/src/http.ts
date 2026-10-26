@@ -32,21 +32,42 @@ export function setMaxCacheAge(ms: number | undefined): void {
   maxAgeMs = ms;
 }
 
+export class RateLimited extends Error {
+  constructor(host: string) {
+    super(`${host} keeps rate-limiting requests`);
+  }
+}
+
+const cacheFile = (url: string) => join(CACHE_DIR, `${createHash('sha256').update(url).digest('hex')}.json`);
+
+async function readCached(file: string): Promise<CachedResponse | undefined> {
+  try {
+    const cached = JSON.parse(await readFile(file, 'utf8')) as CachedResponse;
+    const fresh = maxAgeMs === undefined || (cached.fetchedAt !== undefined && Date.now() - cached.fetchedAt < maxAgeMs);
+    return fresh ? cached : undefined;
+  } catch {
+    return undefined; // Not cached yet.
+  }
+}
+
+/** A cached response, without touching the network. */
+export const cachedOnly = (url: string): Promise<CachedResponse | undefined> => readCached(cacheFile(url));
+
 /**
  * GET with an on-disk cache and sequential pacing. 404s are cached as well, so
  * delete .cache/http (or use setMaxCacheAge) to re-query positions that had no data.
  */
-export async function cachedGet(url: string, headers: Record<string, string> = {}): Promise<CachedResponse> {
-  const file = join(CACHE_DIR, `${createHash('sha256').update(url).digest('hex')}.json`);
-  try {
-    const cached = JSON.parse(await readFile(file, 'utf8')) as CachedResponse;
-    const fresh = maxAgeMs === undefined || (cached.fetchedAt !== undefined && Date.now() - cached.fetchedAt < maxAgeMs);
-    if (fresh) return cached;
-  } catch {
-    // Not cached yet.
-  }
+export async function cachedGet(
+  url: string,
+  headers: Record<string, string> = {},
+  /** Throw RateLimited after this many 429s in a row, instead of waiting indefinitely. */
+  maxRateLimits = Infinity,
+): Promise<CachedResponse> {
+  const file = cacheFile(url);
+  const cached = await readCached(file);
+  if (cached) return cached;
 
-  for (;;) {
+  for (let limited = 0; ; ) {
     const host = new URL(url).host;
     const wait = lastRequestAt + (HOST_INTERVAL_MS[host] ?? MIN_INTERVAL_MS) - Date.now();
     if (wait > 0) await sleep(wait);
@@ -54,6 +75,7 @@ export async function cachedGet(url: string, headers: Record<string, string> = {
 
     const res = await fetch(url, { headers: { 'User-Agent': USER_AGENT, ...headers } });
     if (res.status === 429) {
+      if (++limited > maxRateLimits) throw new RateLimited(host);
       const retryAfter = Number(res.headers.get('retry-after')) * 1000 || RATE_LIMIT_BACKOFF_MS;
       console.warn(`Rate limited by ${host}; waiting ${retryAfter / 1000}s`);
       await sleep(retryAfter);

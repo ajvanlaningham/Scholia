@@ -113,7 +113,7 @@ describe('parseAnnotatedPgn', () => {
 [SetUp "1"]
 
 { The Traxler. [%csl Gf2] }
-5. Nxf7 $6 { Greedy. [%cal Gf7d8] } (5. Bxf7+ $1 { The modern choice. } Ke7) 5... Bxf2+ $1 6. Kxf2 *
+5. Nxf7 $6 { [%anno "Guest", guest] Greedy. [%cal Gf7d8] } (5. Bxf7+ $1 { The modern choice. } Ke7) 5... Bxf2+ $1 6. Kxf2 *
 
 [Event "Second chapter"]
 

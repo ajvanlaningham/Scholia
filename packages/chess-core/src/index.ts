@@ -138,7 +138,7 @@ export interface AnnotatedMove extends PlayedMove {
   fromKey: string;
   /** SAN moves from the game's starting position up to and including this one. */
   path: string[];
-  /** Comment text before and after the move, with [%cal]/[%csl]/[%eval] markup removed. */
+  /** Comment text before and after the move, with [%cal]/[%csl]/[%eval] and other [%…] commands removed. */
   comments: string[];
   /** Move and position assessments, e.g. "!", "?!", "±". */
   symbols: string[];
@@ -162,8 +162,12 @@ const NAG_SYMBOLS: Record<number, string> = {
   22: '⨀', 23: '⨀', 32: '⟳', 33: '⟳', 36: '→', 37: '→', 40: '↑', 41: '↑', 132: '⇆', 133: '⇆',
 };
 
+// parseComment knows the board commands; others, like Lichess's [%anno "Author", id]
+// co-author tag, are dropped here.
 const commentText = (comments: string[] | undefined): string[] =>
-  (comments ?? []).map((c) => parseComment(c).text.trim()).filter((c) => c.length > 0);
+  (comments ?? [])
+    .map((c) => parseComment(c).text.replace(/\[%\w+[^\]]*\]/g, '').trim())
+    .filter((c) => c.length > 0);
 
 function walk(node: Node<PgnNodeData>, pos: Chess, path: string[], out: AnnotatedMove[], mainline = true): void {
   for (const [index, child] of node.children.entries()) {

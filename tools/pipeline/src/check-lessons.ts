@@ -75,6 +75,31 @@ export async function compileCourse(
       ? (playPgnMainline(at).moves.at(-1)?.key ?? key)
       : (playSanLine(fen, sansOf(at)).at(-1)?.key ?? key);
 
+  /**
+   * The passage a citation names. A study can annotate one position in several
+   * chapters, so an ambiguous citation must name its chapter. A chapter's own
+   * comment beats the chapter-name note anchored at its end.
+   */
+  function citedPassage(cite: Cite, key: string, ref: { title: string; author?: string }): SourceAnnotation | string {
+    const at = cite.at || 'the start';
+    const here = annotations.filter(
+      (a) => a.toKey === key && a.source.title === ref.title && (!ref.author || a.source.author === ref.author),
+    );
+    const inChapter = cite.chapter === undefined ? here : here.filter((a) => a.source.locator === cite.chapter);
+    const comments = inChapter.filter((a) => a.text !== `Chapter: ${a.source.locator}`);
+    const candidates = comments.length > 0 ? comments : inChapter;
+    if (candidates.length === 0) {
+      return cite.chapter === undefined || here.length === 0
+        ? `no ${cite.source} annotation at "${at}"`
+        : `no ${cite.source} annotation at "${at}" in chapter "${cite.chapter}"`;
+    }
+    if (new Set(candidates.map((a) => a.text)).size > 1) {
+      const chapters = [...new Set(candidates.map((a) => `"${a.source.locator}"`))].join(', ');
+      return `${candidates.length} ${cite.source} passages at "${at}"; name one with "chapter" (${chapters})`;
+    }
+    return candidates[0]!;
+  }
+
   /** "7...Qh4" for Black's 7th move, "8.g3" for White's 8th. */
   function label(fenBefore: string, san: string): string {
     const [, turn, , , , fullmove] = fenBefore.split(' ');
@@ -218,10 +243,11 @@ const citationOf = (a: SourceAnnotation): Citation => ({
         problems.push(`${where}: citation "${cite.at}" is not a legal line (${(error as Error).message})`);
         return undefined;
       }
-      const found = annotations.find(
-        (a) => a.toKey === key && a.source.title === ref.title && (!ref.author || a.source.author === ref.author),
-      );
-      if (!found) problems.push(`${where}: no ${cite.source} annotation at "${cite.at || 'the start'}"`);
+      const found = citedPassage(cite, key, ref);
+      if (typeof found === 'string') {
+        problems.push(`${where}: ${found}`);
+        return undefined;
+      }
       return found;
     }
 
@@ -557,11 +583,12 @@ const citationOf = (a: SourceAnnotation): Citation => ({
         problem(`citation "${cite.at}" is not a legal line (${(error as Error).message})`);
         return [];
       }
-      const found = annotations.find(
-        (a) => a.toKey === key && a.source.title === ref.title && (!ref.author || a.source.author === ref.author),
-      );
-      if (!found) problem(`no ${cite.source} annotation at "${cite.at || 'the root'}"`);
-      return found ? [citationOf(found)] : [];
+      const found = citedPassage(cite, key, ref);
+      if (typeof found === 'string') {
+        problem(found);
+        return [];
+      }
+      return [citationOf(found)];
     });
     if (citations.length === 0) problem('overview text without a citation');
     if (o.status === 'reviewed') {

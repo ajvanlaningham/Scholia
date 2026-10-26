@@ -1,5 +1,5 @@
 import { engineLine, type Evaluation } from './evaluation.ts';
-import { cachedGet } from './http.ts';
+import { type CachedResponse, cachedGet, cachedOnly, RateLimited } from './http.ts';
 
 export interface Counts {
   white: number;
@@ -46,10 +46,26 @@ interface CloudEvalResponse {
 }
 
 /** Lichess's cached deep evaluations; undefined when the position isn't in the cloud. */
+// Once Lichess keeps refusing cloud evals, stop asking for the rest of the run:
+// the caller falls back to local Stockfish, and cached evals still count.
+let cloudRefused = false;
+
 export async function cloudEval(fen: string, multiPv: number): Promise<Evaluation | undefined> {
   const params = new URLSearchParams({ fen, multiPv: String(multiPv) });
-  const res = await cachedGet(`https://lichess.org/api/cloud-eval?${params}`);
-  if (res.status === 404) return undefined;
+  const url = `https://lichess.org/api/cloud-eval?${params}`;
+  let res: CachedResponse | undefined;
+  if (cloudRefused) {
+    res = await cachedOnly(url);
+  } else {
+    try {
+      res = await cachedGet(url, {}, 3);
+    } catch (error) {
+      if (!(error instanceof RateLimited)) throw error;
+      cloudRefused = true;
+      console.warn(`\n${error.message}; evaluating the remaining positions locally`);
+    }
+  }
+  if (!res || res.status === 404) return undefined;
   const data = JSON.parse(res.body) as CloudEvalResponse;
   return {
     origin: 'lichess-cloud',

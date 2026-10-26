@@ -57,6 +57,8 @@ export interface Cite {
   source: string;
   /** Moves from the lesson's start position, e.g. "5.Nxf7 Bxf2+"; "" is the start itself. */
   at: string;
+  /** A study chapter's name, when several chapters annotate the position. */
+  chapter?: string;
 }
 
 export interface Explanation {
